@@ -1,0 +1,234 @@
+/* style.css - Heroics Gaming Lounge Theme */
+
+:root {
+    --bg-dark: #0a0612;
+    --card-bg: #130d24;
+    --border-color: #2a1b4e;
+    --primary-purple: #8a2be2;
+    --neon-pink: #ff007f;
+    --neon-blue: #00d2ff;
+    --text-light: #e0d6ff;
+    --text-muted: #8c7bb0;
+}
+
+body {
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    margin: 0;
+    padding: 20px;
+    background-color: var(--bg-dark);
+    color: var(--text-light);
+}
+
+/* Header & Logo */
+.header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    background: var(--card-bg);
+    padding: 15px 25px;
+    border-radius: 10px;
+    border: 1px solid var(--border-color);
+    box-shadow: 0 0 15px rgba(138, 43, 226, 0.2);
+    margin-bottom: 20px;
+}
+
+.brand-section {
+    display: flex;
+    align-items: center;
+    gap: 15px;
+}
+
+.brand-logo {
+    height: 50px;
+    width: auto;
+    filter: drop-shadow(0 0 8px var(--primary-purple));
+}
+
+.brand-title {
+    height: 35px;
+    width: auto;
+}
+
+.header-user {
+    font-size: 14px;
+    color: var(--text-muted);
+}
+
+.header-user b {
+    color: var(--neon-pink);
+}
+
+.header-user a {
+    color: var(--neon-blue);
+    text-decoration: none;
+    margin-left: 10px;
+}
+
+.header-user a:hover {
+    text-decoration: underline;
+}
+
+/* Navigation Tabs */
+.nav-buttons {
+    display: flex;
+    gap: 12px;
+    margin-bottom: 20px;
+}
+
+.nav-btn {
+    flex: 1;
+    text-align: center;
+    padding: 14px;
+    background: var(--card-bg);
+    color: var(--text-muted);
+    text-decoration: none;
+    font-weight: bold;
+    border-radius: 8px;
+    border: 1px solid var(--border-color);
+    transition: all 0.3s ease;
+}
+
+.nav-btn:hover {
+    color: #fff;
+    border-color: var(--primary-purple);
+    box-shadow: 0 0 10px rgba(138, 43, 226, 0.3);
+}
+
+.nav-btn.active {
+    background: linear-gradient(135deg, #6a11cb 0%, #2575fc 100%);
+    color: #fff;
+    border-color: transparent;
+    box-shadow: 0 0 15px rgba(37, 117, 252, 0.5);
+}
+
+/* Card Boxes */
+.box {
+    background: var(--card-bg);
+    padding: 25px;
+    border-radius: 10px;
+    border: 1px solid var(--border-color);
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
+    margin-bottom: 20px;
+}
+
+.box h3 {
+    margin-top: 0;
+    color: #fff;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    font-size: 18px;
+    border-bottom: 1px solid var(--border-color);
+    padding-bottom: 10px;
+}
+
+/* Forms & Inputs */
+.form-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 12px;
+}
+
+input, select {
+    padding: 12px;
+    background: #090514;
+    border: 1px solid var(--border-color);
+    border-radius: 6px;
+    font-size: 14px;
+    color: #fff;
+    width: 100%;
+    box-sizing: border-box;
+    outline: none;
+    transition: border 0.3s ease;
+}
+
+input:focus {
+    border-color: var(--primary-purple);
+    box-shadow: 0 0 8px rgba(138, 43, 226, 0.4);
+}
+
+/* Buttons */
+button.btn {
+    background: linear-gradient(135deg, #8a2be2, #4a00e0);
+    color: white;
+    border: none;
+    padding: 12px 24px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-weight: bold;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    transition: transform 0.2s, box-shadow 0.2s;
+}
+
+button.btn:hover {
+    box-shadow: 0 0 15px rgba(138, 43, 226, 0.6);
+    transform: translateY(-1px);
+}
+
+button.btn-green {
+    background: linear-gradient(135deg, #00b09b, #96c93d);
+}
+
+button.btn-green:hover {
+    box-shadow: 0 0 15px rgba(0, 176, 155, 0.6);
+}
+
+button.btn-danger, a.btn-danger {
+    background: #dc3545;
+    color: white;
+    border: none;
+    padding: 6px 12px;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 12px;
+}
+
+/* Data Tables */
+table {
+    width: 100%;
+    border-collapse: collapse;
+    background: var(--card-bg);
+    border-radius: 10px;
+    overflow: hidden;
+    border: 1px solid var(--border-color);
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
+}
+
+th, td {
+    border-bottom: 1px solid var(--border-color);
+    padding: 14px;
+    text-align: left;
+    font-size: 14px;
+}
+
+th {
+    background: #1c1335;
+    color: var(--neon-pink);
+    text-transform: uppercase;
+    font-size: 12px;
+    letter-spacing: 1px;
+}
+
+tr:hover {
+    background: #181030;
+}
+
+/* Denomination Table Layout */
+.denom-table input {
+    width: 120px;
+    text-align: center;
+}
+
+.total-display {
+    font-size: 22px;
+    font-weight: bold;
+    color: var(--neon-blue);
+    margin-top: 15px;
+    text-shadow: 0 0 10px rgba(0, 210, 255, 0.4);
+}
+
+.edit-row input, .edit-row select {
+    font-size: 11px;
+    padding: 6px;
+    width: 100%;
+}
