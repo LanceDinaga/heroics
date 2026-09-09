@@ -1,14 +1,12 @@
 <?php
 // users.php - Admin User Management Panel
-session_start();
+require 'db.php';
+require 'shift_status_banner.php';
 
-// Access Control: Admins Only
-if (!isset($_SESSION['loggedin']) || $_SESSION['role'] !== 'admin') {
+if (!isset($_SESSION['loggedin']) || ($_SESSION['role'] ?? '') !== 'admin') {
     header("Location: index.php");
     exit;
 }
-
-require 'db.php';
 
 $msg = '';
 $error = '';
@@ -16,7 +14,6 @@ $logged_user = $_SESSION['username'];
 
 // --- ACTIONS: CREATE / UPDATE / DELETE --- //
 
-// 1. Create New User
 if (isset($_POST['action']) && $_POST['action'] === 'create_user') {
     if (!isset($_POST['csrf_token']) || $_POST['csrf_token'] !== $_SESSION['csrf_token']) {
         die("CSRF validation failed.");
@@ -40,7 +37,6 @@ if (isset($_POST['action']) && $_POST['action'] === 'create_user') {
     }
 }
 
-// 2. Update Existing User (Username, Password, Role)
 if (isset($_POST['action']) && $_POST['action'] === 'update_user') {
     if (!isset($_POST['csrf_token']) || $_POST['csrf_token'] !== $_SESSION['csrf_token']) {
         die("CSRF validation failed.");
@@ -74,7 +70,6 @@ if (isset($_POST['action']) && $_POST['action'] === 'update_user') {
     }
 }
 
-// 3. Delete User (STRICT: All admin roles cannot be deleted)
 if (isset($_GET['delete_id']) && isset($_GET['csrf_token'])) {
     if ($_GET['csrf_token'] === $_SESSION['csrf_token']) {
         $del_id = intval($_GET['delete_id']);
@@ -100,7 +95,6 @@ if (isset($_GET['msg']) && $_GET['msg'] === 'deleted') {
     $msg = "Staff account deleted successfully!";
 }
 
-// Fetch all registered users
 $users = $pdo->query("SELECT * FROM users ORDER BY id ASC")->fetchAll();
 ?>
 <!DOCTYPE html>
@@ -124,23 +118,23 @@ $users = $pdo->query("SELECT * FROM users ORDER BY id ASC")->fetchAll();
 </head>
 <body>
 
-    <!-- Header -->
     <div class="header">
         <div class="brand-section">
-            <img src="heroics-title.png" alt="Heroics Gaming Lounge" class="brand-title" style="height: 45px; width: auto; filter: drop-shadow(0 0 8px var(--primary-purple));">
+            <a href="shifts.php"><img src="heroics-title.png" alt="Heroics Gaming Lounge" class="brand-title" style="height: 45px; width: auto; filter: drop-shadow(0 0 8px var(--primary-purple));"></a>
         </div>
         <div class="header-user">
             Logged in as: <b><?= htmlspecialchars($logged_user); ?></b> (<?= ucfirst($_SESSION['role']); ?>) | 
             <a href="index.php">Dashboard</a> | 
+            <a href="shifts.php">Shifts</a> |
             <a href="logout.php">Logout</a>
         </div>
     </div>
 
-    <!-- Alerts -->
+    <?php renderShiftBanner($pdo); ?>
+
     <?php if ($msg): ?><div class="box" style="border-left: 4px solid #00ffcc; padding: 12px; margin-bottom: 15px; color:#00ffcc;"><?= htmlspecialchars($msg) ?></div><?php endif; ?>
     <?php if ($error): ?><div class="box" style="border-left: 4px solid #ff4d4d; padding: 12px; margin-bottom: 15px; color:#ff4d4d;"><?= htmlspecialchars($error) ?></div><?php endif; ?>
 
-    <!-- Create User Box -->
     <div class="box" style="border-left: 4px solid var(--neon-pink);">
         <h3>+ Create New User</h3>
         <form method="POST">
@@ -159,7 +153,6 @@ $users = $pdo->query("SELECT * FROM users ORDER BY id ASC")->fetchAll();
         </form>
     </div>
 
-    <!-- User Directory -->
     <div class="box">
         <h3>User Accounts Directory</h3>
         <table>
@@ -194,28 +187,21 @@ $users = $pdo->query("SELECT * FROM users ORDER BY id ASC")->fetchAll();
                 </tr>
 
                 <tr id="edit_<?= $u['id'] ?>" class="edit-row" style="display:none;">
-                    <form method="POST">
-                        <input type="hidden" name="csrf_token" value="<?= $_SESSION['csrf_token']; ?>">
-                        <input type="hidden" name="action" value="update_user">
-                        <input type="hidden" name="user_id" value="<?= $u['id'] ?>">
-                        <td>#<?= $u['id'] ?></td>
-                        <td>
+                    <td colspan="5">
+                        <form method="POST" style="display:flex; gap:10px; align-items:center; flex-wrap:wrap;">
+                            <input type="hidden" name="csrf_token" value="<?= $_SESSION['csrf_token']; ?>">
+                            <input type="hidden" name="action" value="update_user">
+                            <input type="hidden" name="user_id" value="<?= $u['id'] ?>">
                             <input type="text" name="username" value="<?= htmlspecialchars($u['username']) ?>" required>
-                        </td>
-                        <td>
                             <select name="role">
                                 <option value="staff" <?= ($u['role'] ?? 'staff') === 'staff' ? 'selected' : '' ?>>Staff</option>
                                 <option value="admin" <?= ($u['role'] ?? '') === 'admin' ? 'selected' : '' ?>>Admin</option>
                             </select>
-                        </td>
-                        <td>
-                            <input type="password" name="password" placeholder="New Password (leave blank to keep)">
-                        </td>
-                        <td>
+                            <input type="password" name="password" placeholder="New Password">
                             <button type="submit" class="btn btn-green" style="padding: 5px 10px; font-size:12px;">Save</button>
-                            <button type="button" class="btn-danger" onclick="toggleEdit(<?= $u['id'] ?>)">Cancel</button>
-                        </td>
-                    </form>
+                            <button type="button" class="btn-danger" onclick="toggleEdit(<?= $u['id'] ?>)" style="padding: 5px 10px; font-size:12px;">Cancel</button>
+                        </form>
+                    </td>
                 </tr>
                 <?php endforeach; ?>
             </tbody>
