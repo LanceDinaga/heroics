@@ -19,6 +19,18 @@ try {
 } catch (PDOException $e) {}
 
 $active_tab = $_GET['tab'] ?? 'today';
+$shift_topups = [];
+$shift_expenses = [];
+
+if ($open_shift) {
+    $topup_stmt = $pdo->prepare("SELECT account_name, topup_added, note, logged_by, date_time FROM balance_logs WHERE shift_id = ? ORDER BY date_time DESC, id DESC");
+    $topup_stmt->execute([$open_shift['id']]);
+    $shift_topups = $topup_stmt->fetchAll();
+
+    $expense_stmt = $pdo->prepare("SELECT item_name, amount, payment_method, logged_by, date_time FROM expense_logs WHERE shift_id = ? ORDER BY date_time DESC, id DESC");
+    $expense_stmt->execute([$open_shift['id']]);
+    $shift_expenses = $expense_stmt->fetchAll();
+}
 
 // Handle Form Submissions
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
@@ -181,6 +193,35 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     </div>
                 </form>
             </div>
+            <div class="box">
+                <h3>Topups Made This Shift</h3>
+                <?php if (!$shift_topups): ?>
+                    <p style="color:var(--text-muted);">No topups have been recorded for this shift.</p>
+                <?php else: ?>
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Account / Customer</th>
+                                <th>Amount</th>
+                                <th>Note</th>
+                                <th>Logged By</th>
+                                <th>Date / Time</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <?php foreach ($shift_topups as $topup): ?>
+                                <tr>
+                                    <td><?= htmlspecialchars($topup['account_name']) ?></td>
+                                    <td>₱<?= number_format((float) $topup['topup_added'], 2) ?></td>
+                                    <td><?= htmlspecialchars($topup['note'] ?? '') ?: '—' ?></td>
+                                    <td><?= htmlspecialchars($topup['logged_by']) ?></td>
+                                    <td><?= htmlspecialchars($topup['date_time']) ?></td>
+                                </tr>
+                            <?php endforeach; ?>
+                        </tbody>
+                    </table>
+                <?php endif; ?>
+            </div>
         <?php endif; ?>
 
     <?php elseif ($active_tab === 'expense'): ?>
@@ -210,6 +251,37 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 </div>
             </form>
         </div>
+        <?php if ($open_shift): ?>
+            <div class="box">
+                <h3>Expenses Made This Shift</h3>
+                <?php if (!$shift_expenses): ?>
+                    <p style="color:var(--text-muted);">No expenses have been recorded for this shift.</p>
+                <?php else: ?>
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Item / Description</th>
+                                <th>Amount</th>
+                                <th>Payment Method</th>
+                                <th>Logged By</th>
+                                <th>Date / Time</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <?php foreach ($shift_expenses as $expense): ?>
+                                <tr>
+                                    <td><?= htmlspecialchars($expense['item_name']) ?></td>
+                                    <td>₱<?= number_format((float) $expense['amount'], 2) ?></td>
+                                    <td><?= htmlspecialchars(ucfirst($expense['payment_method'])) ?></td>
+                                    <td><?= htmlspecialchars($expense['logged_by']) ?></td>
+                                    <td><?= htmlspecialchars($expense['date_time']) ?></td>
+                                </tr>
+                            <?php endforeach; ?>
+                        </tbody>
+                    </table>
+                <?php endif; ?>
+            </div>
+        <?php endif; ?>
     <?php endif; ?>
 
 </div>
