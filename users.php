@@ -208,25 +208,5 @@ $users = $pdo->query("SELECT * FROM users ORDER BY id ASC")->fetchAll();
         </table>
     </div>
     
-    <script>
-    let isInternalNavigation = false;
-
-    document.addEventListener('click', function (e) {
-        if (e.target.closest('a, button, input[type="submit"]')) {
-            isInternalNavigation = true;
-        }
-    }, true);
-
-    document.addEventListener('submit', function () {
-        isInternalNavigation = true;
-    }, true);
-
-    window.addEventListener('pagehide', function () {
-        if (!isInternalNavigation) {
-            navigator.sendBeacon('logout.php');
-        }
-    });
-</script>
-
 </body>
 </html>
