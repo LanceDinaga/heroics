@@ -92,7 +92,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             if ($is_new_period) {
                 $start_date = $today;
                 $end_date   = date('Y-m-d', strtotime($start_date . ' +1 day'));
-                $label      = date('M j', strtotime($start_date)) . '–' . date('M j', strtotime($end_date));
+                $label      = date('M j', strtotime($start_date));
 
                 $existing = $pdo->prepare("SELECT id FROM shift_periods WHERE start_date = ?");
                 $existing->execute([$start_date]);
@@ -397,7 +397,7 @@ try {
     <?php else: ?>
         <?php foreach ($history as $h): ?>
             <div class="period-card">
-                <h4>📅 Shift <?= htmlspecialchars($h['period']['label']) ?></h4>
+                <h4>📅 Shift <?= htmlspecialchars(date('M j', strtotime($h['period']['start_date']))) ?></h4>
                 <p style="color:var(--neon-blue); font-weight:bold; margin-top:-8px;">Total Sales: ₱<?= number_format($h['total_sales'],2) ?></p>
                 <?php foreach ($h['shifts'] as $s): ?>
                     <div class="subshift">

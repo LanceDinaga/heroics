@@ -12,11 +12,11 @@ $period_id = isset($_GET['period_id']) ? intval($_GET['period_id']) : null;
 // Determine filename
 $filename = 'Export_Data_All_' . date('Y-m-d') . '.xls';
 if ($period_id) {
-    $stmtP = $pdo->prepare("SELECT label FROM shift_periods WHERE id = ?");
+    $stmtP = $pdo->prepare("SELECT start_date FROM shift_periods WHERE id = ?");
     $stmtP->execute([$period_id]);
-    $pLabel = $stmtP->fetchColumn();
-    if ($pLabel) {
-        $cleanLabel = preg_replace('/[^A-Za-z0-9\-]/', '_', $pLabel);
+    $pStartDate = $stmtP->fetchColumn();
+    if ($pStartDate) {
+        $cleanLabel = date('M_j', strtotime($pStartDate));
         $filename = "Export_Data_{$cleanLabel}.xls";
     }
 }
@@ -50,7 +50,7 @@ header("Expires: 0");
         <th>Cash Sales</th><th>GCash Sales</th><th>Extra Topups</th><th>Cash Expenses</th><th>GCash Expenses</th>
     </tr>
     <?php
-    $sql1 = "SELECT s.id, p.label, s.shift_type, s.status, s.opened_by, 
+    $sql1 = "SELECT s.id, DATE_FORMAT(p.start_date, '%b %e'), s.shift_type, s.status, s.opened_by,
             DATE_FORMAT(s.opened_at, '%Y-%m-%d %H:%i') AS opened_at, COALESCE(s.closed_by, ''), 
             IF(s.closed_at IS NULL, '', DATE_FORMAT(s.closed_at, '%Y-%m-%d %H:%i')) AS closed_at,
             s.starting_cash, s.starting_gcash, s.ending_cash, s.ending_gcash,
@@ -118,7 +118,7 @@ header("Expires: 0");
         <th>Payment Method</th><th>Note / Particular</th><th>Logged By</th><th>Date / Time</th>
     </tr>
     <?php
-    $sql2 = "SELECT e.id, p.label, s.shift_type, e.amount, e.payment_method, e.note, e.logged_by, 
+    $sql2 = "SELECT e.id, DATE_FORMAT(p.start_date, '%b %e'), s.shift_type, e.amount, e.payment_method, e.note, e.logged_by,
             DATE_FORMAT(e.date_time, '%Y-%m-%d %H:%i') FROM shift_log_entries e 
             JOIN shifts s ON e.shift_id = s.id JOIN shift_periods p ON s.shift_period_id = p.id";
     if ($period_id) { $sql2 .= " WHERE s.shift_period_id = " . $period_id; }
@@ -144,7 +144,7 @@ header("Expires: 0");
         <th>Topup Amount (PHP)</th><th>Note / Reason</th><th>Logged By</th><th>Date / Time</th>
     </tr>
     <?php
-    $sql3 = "SELECT b.id, COALESCE(p.label, 'N/A'), COALESCE(s.shift_type, 'N/A'), b.account_name, b.topup_added, b.note, b.logged_by, 
+    $sql3 = "SELECT b.id, COALESCE(DATE_FORMAT(p.start_date, '%b %e'), 'N/A'), COALESCE(s.shift_type, 'N/A'), b.account_name, b.topup_added, b.note, b.logged_by,
             DATE_FORMAT(b.date_time, '%Y-%m-%d %H:%i') FROM balance_logs b 
             LEFT JOIN shifts s ON b.shift_id = s.id LEFT JOIN shift_periods p ON s.shift_period_id = p.id";
     if ($period_id) { $sql3 .= " WHERE s.shift_period_id = " . $period_id; }
@@ -170,7 +170,7 @@ header("Expires: 0");
         <th>Amount (PHP)</th><th>Payment Method</th><th>Logged By</th><th>Date / Time</th>
     </tr>
     <?php
-    $sql4 = "SELECT x.id, COALESCE(p.label, 'N/A'), COALESCE(s.shift_type, 'N/A'), x.item_name, x.amount, x.payment_method, x.logged_by, 
+    $sql4 = "SELECT x.id, COALESCE(DATE_FORMAT(p.start_date, '%b %e'), 'N/A'), COALESCE(s.shift_type, 'N/A'), x.item_name, x.amount, x.payment_method, x.logged_by,
             DATE_FORMAT(x.date_time, '%Y-%m-%d %H:%i') FROM expense_logs x 
             LEFT JOIN shifts s ON x.shift_id = s.id LEFT JOIN shift_periods p ON s.shift_period_id = p.id";
     if ($period_id) { $sql4 .= " WHERE s.shift_period_id = " . $period_id; }

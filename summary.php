@@ -246,7 +246,7 @@ try {
             <div class="summary-card">
                 <!-- SHIFT PERIOD HEADER WITH UPPER-RIGHT EXPORT BUTTON -->
                 <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid rgba(255,255,255,0.1); padding-bottom: 12px; margin-bottom: 15px;">
-                    <h3 style="color:var(--neon-pink); margin:0;">📅 Shift Period: <?= htmlspecialchars($data['period']['label']) ?></h3>
+                    <h3 style="color:var(--neon-pink); margin:0;">📅 Shift Day: <?= htmlspecialchars(date('M j', strtotime($data['period']['start_date']))) ?></h3>
                     
                     <a href="export.php?period_id=<?= $data['period']['id'] ?>" class="btn btn-green" style="text-decoration:none; padding: 6px 14px; font-size:12px; font-weight:bold;">
                         📥 Export Data
