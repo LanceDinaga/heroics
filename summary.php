@@ -31,6 +31,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         exit;
     }
 
+    if ($action === 'lock_summary' && $shift_id > 0) {
+        if (isset($_SESSION['summary_edit_shift_id']) && intval($_SESSION['summary_edit_shift_id']) === $shift_id) {
+            unset($_SESSION['summary_edit_shift_id']);
+            setFlashMessage('Summary editing finished.');
+        }
+        header("Location: summary.php");
+        exit;
+    }
+
     $can_edit_shift = isset($_SESSION['summary_edit_shift_id']) && intval($_SESSION['summary_edit_shift_id']) === $shift_id;
     if ($can_edit_shift && $shift_id > 0 && $amount > 0) {
         if ($action === 'add_sale') {
@@ -253,12 +262,13 @@ try {
                             </div>
                             <form method="POST" action="summary.php" id="unlock_<?= $s['id'] ?>">
                                 <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($_SESSION['csrf_token']) ?>">
-                                <input type="hidden" name="action" value="unlock_summary">
                                 <input type="hidden" name="shift_id" value="<?= $s['id'] ?>">
-                                <input type="hidden" name="summary_password" id="password_<?= $s['id'] ?>">
                                 <?php if ($s['can_edit']): ?>
-                                    <span style="color:#00b09b; font-size:12px; font-weight:bold;">Editing unlocked</span>
+                                    <input type="hidden" name="action" value="lock_summary">
+                                    <button type="submit" class="btn" style="padding:6px 14px; font-size:12px;">Done Editing</button>
                                 <?php else: ?>
+                                    <input type="hidden" name="action" value="unlock_summary">
+                                    <input type="hidden" name="summary_password" id="password_<?= $s['id'] ?>">
                                     <button type="button" class="btn" style="padding:6px 14px; font-size:12px;" onclick="unlockSummary(<?= $s['id'] ?>)">Edit</button>
                                 <?php endif; ?>
                             </form>
