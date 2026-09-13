@@ -10,6 +10,43 @@ if (!isset($_SESSION['loggedin'])) {
 $logged_user = $_SESSION['username'];
 $user_role   = $_SESSION['role'] ?? 'staff';
 
+if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    if (!isset($_POST['csrf_token']) || $_POST['csrf_token'] !== $_SESSION['csrf_token']) {
+        die("CSRF validation failed.");
+    }
+
+    $action  = $_POST['action'] ?? '';
+    $shift_id = intval($_POST['shift_id'] ?? 0);
+    $record_id = intval($_POST['record_id'] ?? 0);
+    $amount = floatval($_POST['amount'] ?? 0);
+
+    if ($shift_id > 0 && $record_id > 0 && $amount > 0) {
+        if ($action === 'update_sale') {
+            $payment_method = ($_POST['payment_method'] ?? '') === 'gcash' ? 'gcash' : 'cash';
+            $note = trim($_POST['note'] ?? '');
+            $stmt = $pdo->prepare("UPDATE shift_log_entries SET amount = ?, payment_method = ?, note = ? WHERE id = ? AND shift_id = ?");
+            $stmt->execute([$amount, $payment_method, $note, $record_id, $shift_id]);
+        } elseif ($action === 'update_topup') {
+            $account_name = trim($_POST['account_name'] ?? '');
+            $note = trim($_POST['note'] ?? '');
+            if ($account_name !== '') {
+                $stmt = $pdo->prepare("UPDATE balance_logs SET account_name = ?, topup_added = ?, note = ? WHERE id = ? AND shift_id = ?");
+                $stmt->execute([$account_name, $amount, $note, $record_id, $shift_id]);
+            }
+        } elseif ($action === 'update_expense') {
+            $item_name = trim($_POST['item_name'] ?? '');
+            $payment_method = ($_POST['payment_method'] ?? '') === 'gcash' ? 'gcash' : 'cash';
+            if ($item_name !== '') {
+                $stmt = $pdo->prepare("UPDATE expense_logs SET item_name = ?, amount = ?, payment_method = ? WHERE id = ? AND shift_id = ?");
+                $stmt->execute([$item_name, $amount, $payment_method, $record_id, $shift_id]);
+            }
+        }
+    }
+
+    header("Location: summary.php");
+    exit;
+}
+
 // Fetch Shift Periods and calculate internal metrics
 $periods_data = [];
 try {
@@ -47,6 +84,18 @@ try {
             }
             $s['cash_expenses']  = $expenses['cash'];
             $s['gcash_expenses'] = $expenses['gcash'];
+
+            $entries_stmt = $pdo->prepare("SELECT id, amount, payment_method, note, logged_by, date_time FROM shift_log_entries WHERE shift_id = ? ORDER BY date_time ASC, id ASC");
+            $entries_stmt->execute([$shift_id]);
+            $s['entries'] = $entries_stmt->fetchAll();
+
+            $topups_detail_stmt = $pdo->prepare("SELECT id, account_name, topup_added, note, logged_by, date_time FROM balance_logs WHERE shift_id = ? ORDER BY date_time ASC, id ASC");
+            $topups_detail_stmt->execute([$shift_id]);
+            $s['topups'] = $topups_detail_stmt->fetchAll();
+
+            $expenses_detail_stmt = $pdo->prepare("SELECT id, item_name, amount, payment_method, logged_by, date_time FROM expense_logs WHERE shift_id = ? ORDER BY date_time ASC, id ASC");
+            $expenses_detail_stmt->execute([$shift_id]);
+            $s['expenses'] = $expenses_detail_stmt->fetchAll();
 
             // 4. Computed Metrics
             $s['pondo_total']  = $s['entry_sales'] + $s['extra_topups'];
@@ -87,6 +136,10 @@ try {
         .tag-badge { font-size: 11px; padding: 2px 8px; border-radius: 12px; text-transform: uppercase; font-weight: bold; }
         .tag-morning { background: rgba(255, 193, 7, 0.2); color: #ffc107; }
         .tag-night { background: rgba(138, 43, 226, 0.2); color: #b388ff; }
+        .summary-detail-title { margin: 22px 0 10px; color: var(--neon-pink); font-size: 15px; }
+        .summary-table-wrap { overflow-x: auto; }
+        .summary-table-wrap table { min-width: 760px; }
+        .summary-table-wrap input, .summary-table-wrap select { min-width: 90px; padding: 7px; }
     </style>
 </head>
 <body>
@@ -185,6 +238,78 @@ try {
                                 <div style="font-size:10px; color:var(--text-muted); margin-top:3px;">GCash Exp: ₱<?= number_format($s['gcash_expenses'],2) ?></div>
                             </div>
                         </div>
+
+                        <h4 class="summary-detail-title">Sales Entries</h4>
+                        <?php if (empty($s['entries'])): ?>
+                            <p style="color:var(--text-muted);">No sales entries recorded.</p>
+                        <?php else: ?>
+                            <div class="summary-table-wrap">
+                                <table>
+                                    <thead><tr><th>Amount</th><th>Payment Method</th><th>Note</th><th>Logged By</th><th>Date / Time</th><th>Save</th></tr></thead>
+                                    <tbody>
+                                    <?php foreach ($s['entries'] as $entry): ?>
+                                        <tr>
+                                            <?php $form_id = 'sale_' . $entry['id']; ?>
+                                            <td><form id="<?= $form_id ?>" method="POST" action="summary.php"></form><input form="<?= $form_id ?>" type="hidden" name="csrf_token" value="<?= htmlspecialchars($_SESSION['csrf_token']) ?>"><input form="<?= $form_id ?>" type="hidden" name="action" value="update_sale"><input form="<?= $form_id ?>" type="hidden" name="shift_id" value="<?= $s['id'] ?>"><input form="<?= $form_id ?>" type="hidden" name="record_id" value="<?= $entry['id'] ?>"><input form="<?= $form_id ?>" type="number" name="amount" step="0.01" min="0.01" value="<?= htmlspecialchars($entry['amount']) ?>" required></td>
+                                            <td><select form="<?= $form_id ?>" name="payment_method"><option value="cash" <?= $entry['payment_method'] === 'cash' ? 'selected' : '' ?>>Cash</option><option value="gcash" <?= $entry['payment_method'] === 'gcash' ? 'selected' : '' ?>>GCash</option></select></td>
+                                            <td><input form="<?= $form_id ?>" type="text" name="note" value="<?= htmlspecialchars($entry['note'] ?? '') ?>"></td>
+                                            <td><?= htmlspecialchars($entry['logged_by']) ?></td>
+                                            <td><?= htmlspecialchars($entry['date_time']) ?></td>
+                                            <td><button form="<?= $form_id ?>" type="submit" class="btn btn-green" style="padding:6px 10px;">Save</button></td>
+                                        </tr>
+                                    <?php endforeach; ?>
+                                    </tbody>
+                                </table>
+                            </div>
+                        <?php endif; ?>
+
+                        <h4 class="summary-detail-title">Extra Topups</h4>
+                        <?php if (empty($s['topups'])): ?>
+                            <p style="color:var(--text-muted);">No extra topups recorded.</p>
+                        <?php else: ?>
+                            <div class="summary-table-wrap">
+                                <table>
+                                    <thead><tr><th>Account / Customer</th><th>Amount</th><th>Note</th><th>Logged By</th><th>Date / Time</th><th>Save</th></tr></thead>
+                                    <tbody>
+                                    <?php foreach ($s['topups'] as $topup): ?>
+                                        <tr>
+                                            <?php $form_id = 'topup_' . $topup['id']; ?>
+                                            <td><form id="<?= $form_id ?>" method="POST" action="summary.php"></form><input form="<?= $form_id ?>" type="hidden" name="csrf_token" value="<?= htmlspecialchars($_SESSION['csrf_token']) ?>"><input form="<?= $form_id ?>" type="hidden" name="action" value="update_topup"><input form="<?= $form_id ?>" type="hidden" name="shift_id" value="<?= $s['id'] ?>"><input form="<?= $form_id ?>" type="hidden" name="record_id" value="<?= $topup['id'] ?>"><input form="<?= $form_id ?>" type="text" name="account_name" value="<?= htmlspecialchars($topup['account_name']) ?>" required></td>
+                                            <td><input form="<?= $form_id ?>" type="number" name="amount" step="0.01" min="0.01" value="<?= htmlspecialchars($topup['topup_added']) ?>" required></td>
+                                            <td><input form="<?= $form_id ?>" type="text" name="note" value="<?= htmlspecialchars($topup['note'] ?? '') ?>"></td>
+                                            <td><?= htmlspecialchars($topup['logged_by']) ?></td>
+                                            <td><?= htmlspecialchars($topup['date_time']) ?></td>
+                                            <td><button form="<?= $form_id ?>" type="submit" class="btn btn-green" style="padding:6px 10px;">Save</button></td>
+                                        </tr>
+                                    <?php endforeach; ?>
+                                    </tbody>
+                                </table>
+                            </div>
+                        <?php endif; ?>
+
+                        <h4 class="summary-detail-title">Expenses</h4>
+                        <?php if (empty($s['expenses'])): ?>
+                            <p style="color:var(--text-muted);">No expenses recorded.</p>
+                        <?php else: ?>
+                            <div class="summary-table-wrap">
+                                <table>
+                                    <thead><tr><th>Item / Description</th><th>Amount</th><th>Payment Method</th><th>Logged By</th><th>Date / Time</th><th>Save</th></tr></thead>
+                                    <tbody>
+                                    <?php foreach ($s['expenses'] as $expense): ?>
+                                        <tr>
+                                            <?php $form_id = 'expense_' . $expense['id']; ?>
+                                            <td><form id="<?= $form_id ?>" method="POST" action="summary.php"></form><input form="<?= $form_id ?>" type="hidden" name="csrf_token" value="<?= htmlspecialchars($_SESSION['csrf_token']) ?>"><input form="<?= $form_id ?>" type="hidden" name="action" value="update_expense"><input form="<?= $form_id ?>" type="hidden" name="shift_id" value="<?= $s['id'] ?>"><input form="<?= $form_id ?>" type="hidden" name="record_id" value="<?= $expense['id'] ?>"><input form="<?= $form_id ?>" type="text" name="item_name" value="<?= htmlspecialchars($expense['item_name']) ?>" required></td>
+                                            <td><input form="<?= $form_id ?>" type="number" name="amount" step="0.01" min="0.01" value="<?= htmlspecialchars($expense['amount']) ?>" required></td>
+                                            <td><select form="<?= $form_id ?>" name="payment_method"><option value="cash" <?= ($expense['payment_method'] ?? 'cash') === 'cash' ? 'selected' : '' ?>>Cash</option><option value="gcash" <?= $expense['payment_method'] === 'gcash' ? 'selected' : '' ?>>GCash</option></select></td>
+                                            <td><?= htmlspecialchars($expense['logged_by']) ?></td>
+                                            <td><?= htmlspecialchars($expense['date_time']) ?></td>
+                                            <td><button form="<?= $form_id ?>" type="submit" class="btn btn-green" style="padding:6px 10px;">Save</button></td>
+                                        </tr>
+                                    <?php endforeach; ?>
+                                    </tbody>
+                                </table>
+                            </div>
+                        <?php endif; ?>
                     </div>
                 <?php endforeach; ?>
             </div>
