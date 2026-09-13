@@ -112,6 +112,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             // Start shift with 0.00 starting balances initially (will auto-update when cash counter is submitted)
             $stmt = $pdo->prepare("INSERT INTO shifts (shift_period_id, shift_type, starting_cash, starting_gcash, status, opened_by, opened_at) VALUES (?, ?, 0, 0, 'open', ?, NOW())");
             $stmt->execute([$shift_period_id, $shift_type, $logged_user]);
+            setFlashMessage('Shift started.');
         }
         
         // REDIRECT DIRECTLY TO CASH COUNTER UPON STARTING SHIFT
@@ -130,6 +131,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if ($check->fetch() && $amount > 0) {
             $stmt = $pdo->prepare("INSERT INTO shift_log_entries (shift_id, amount, payment_method, note, logged_by, date_time) VALUES (?, ?, ?, ?, ?, NOW())");
             $stmt->execute([$shift_id, $amount, $method, $note, $logged_user]);
+            setFlashMessage('Shift sale saved.');
         }
         header("Location: shifts.php");
         exit;
@@ -142,6 +144,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $note     = trim($_POST['note'] ?? '');
         $stmt = $pdo->prepare("UPDATE shift_log_entries SET amount = ?, payment_method = ?, note = ? WHERE id = ?");
         $stmt->execute([$amount, $method, $note, $entry_id]);
+        setFlashMessage('Shift sale updated.');
         header("Location: shifts.php");
         exit;
     }
@@ -161,6 +164,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
             $stmt = $pdo->prepare("UPDATE shifts SET status='closed', ending_cash=?, ending_gcash=?, closed_by=?, closed_at=NOW(), notes=? WHERE id=?");
             $stmt->execute([$ending['cash'], $ending['gcash'], $logged_user, $close_note, $shift_id]);
+            setFlashMessage('Shift closed.');
         }
         header("Location: shifts.php");
         exit;
@@ -171,6 +175,7 @@ if (isset($_GET['delete_entry']) && isset($_GET['csrf_token'])) {
     if ($_GET['csrf_token'] === $_SESSION['csrf_token']) {
         $stmt = $pdo->prepare("DELETE FROM shift_log_entries WHERE id = ?");
         $stmt->execute([intval($_GET['delete_entry'])]);
+        setFlashMessage('Shift sale deleted.');
     }
     header("Location: shifts.php");
     exit;
@@ -239,6 +244,10 @@ try {
     </style>
 </head>
 <body>
+<?php $flash_message = getFlashMessage(); ?>
+<?php if ($flash_message): ?>
+    <div class="flash-message"><?= htmlspecialchars($flash_message) ?></div>
+<?php endif; ?>
 
 <div class="header">
     <div class="brand-section">

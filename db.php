@@ -11,6 +11,16 @@ if (empty($_SESSION['csrf_token'])) {
     $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
 }
 
+function setFlashMessage($message) {
+    $_SESSION['flash_message'] = $message;
+}
+
+function getFlashMessage() {
+    $message = $_SESSION['flash_message'] ?? '';
+    unset($_SESSION['flash_message']);
+    return $message;
+}
+
 $host = 'sql302.infinityfree.com'; // Or your InfinityFree MySQL Hostname (e.g., sqlXXX.epizy.com)
 $db   = 'if0_42761603_heroics'; // Your database name
 $user = 'if0_42761603';      // Your database username

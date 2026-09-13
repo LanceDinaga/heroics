@@ -21,6 +21,7 @@ try {
 $active_tab = $_GET['tab'] ?? 'today';
 $shift_topups = [];
 $shift_expenses = [];
+$flash_message = getFlashMessage();
 
 if ($open_shift) {
     $topup_stmt = $pdo->prepare("SELECT account_name, topup_added, note, logged_by, date_time FROM balance_logs WHERE shift_id = ? ORDER BY date_time DESC, id DESC");
@@ -64,6 +65,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $updateShift = $pdo->prepare("UPDATE shifts SET starting_cash = ?, starting_gcash = ? WHERE id = ?");
         $updateShift->execute([$cash_total, $gcash, $open_shift['id']]);
 
+        setFlashMessage('Today cash counter saved.');
         header("Location: index.php?tab=today");
         exit;
     }
@@ -77,6 +79,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if ($account_name !== '' && $topup_added > 0) {
             $stmt = $pdo->prepare("INSERT INTO balance_logs (shift_id, account_name, topup_added, note, logged_by, date_time) VALUES (?, ?, ?, ?, ?, NOW())");
             $stmt->execute([$open_shift['id'], $account_name, $topup_added, $note, $logged_user]);
+            setFlashMessage('Extra topup saved.');
         }
         header("Location: index.php?tab=balance");
         exit;
@@ -92,6 +95,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if ($item_name !== '' && $amount > 0) {
             $stmt = $pdo->prepare("INSERT INTO expense_logs (shift_id, item_name, amount, payment_method, logged_by, date_time) VALUES (?, ?, ?, ?, ?, NOW())");
             $stmt->execute([$shift_id, $item_name, $amount, $payment_method, $logged_user]);
+            setFlashMessage('Expense saved.');
         }
         header("Location: index.php?tab=expense");
         exit;
@@ -105,6 +109,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     <link rel="stylesheet" type="text/css" href="style.css">
 </head>
 <body>
+<?php if ($flash_message): ?>
+    <div class="flash-message"><?= htmlspecialchars($flash_message) ?></div>
+<?php endif; ?>
 
 <div class="header">
     <div class="brand-section">

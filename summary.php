@@ -20,18 +20,32 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $record_id = intval($_POST['record_id'] ?? 0);
     $amount = floatval($_POST['amount'] ?? 0);
 
-    if ($shift_id > 0 && $record_id > 0 && $amount > 0) {
+    if ($action === 'unlock_summary' && $shift_id > 0) {
+        if (hash_equals('heroics', (string) ($_POST['summary_password'] ?? ''))) {
+            $_SESSION['summary_edit_shift_id'] = $shift_id;
+            setFlashMessage('Summary editing unlocked for this shift.');
+        } else {
+            setFlashMessage('Incorrect summary password.');
+        }
+        header("Location: summary.php");
+        exit;
+    }
+
+    $can_edit_shift = isset($_SESSION['summary_edit_shift_id']) && intval($_SESSION['summary_edit_shift_id']) === $shift_id;
+    if ($can_edit_shift && $shift_id > 0 && $record_id > 0 && $amount > 0) {
         if ($action === 'update_sale') {
             $payment_method = ($_POST['payment_method'] ?? '') === 'gcash' ? 'gcash' : 'cash';
             $note = trim($_POST['note'] ?? '');
             $stmt = $pdo->prepare("UPDATE shift_log_entries SET amount = ?, payment_method = ?, note = ? WHERE id = ? AND shift_id = ?");
             $stmt->execute([$amount, $payment_method, $note, $record_id, $shift_id]);
+            setFlashMessage('Sales entry updated.');
         } elseif ($action === 'update_topup') {
             $account_name = trim($_POST['account_name'] ?? '');
             $note = trim($_POST['note'] ?? '');
             if ($account_name !== '') {
                 $stmt = $pdo->prepare("UPDATE balance_logs SET account_name = ?, topup_added = ?, note = ? WHERE id = ? AND shift_id = ?");
                 $stmt->execute([$account_name, $amount, $note, $record_id, $shift_id]);
+                setFlashMessage('Extra topup updated.');
             }
         } elseif ($action === 'update_expense') {
             $item_name = trim($_POST['item_name'] ?? '');
@@ -39,6 +53,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             if ($item_name !== '') {
                 $stmt = $pdo->prepare("UPDATE expense_logs SET item_name = ?, amount = ?, payment_method = ? WHERE id = ? AND shift_id = ?");
                 $stmt->execute([$item_name, $amount, $payment_method, $record_id, $shift_id]);
+                setFlashMessage('Expense updated.');
             }
         }
     }
@@ -49,6 +64,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
 // Fetch Shift Periods and calculate internal metrics
 $periods_data = [];
+$flash_message = getFlashMessage();
 try {
     $periods = $pdo->query("SELECT * FROM shift_periods ORDER BY id DESC")->fetchAll();
     foreach ($periods as $p) {
@@ -96,6 +112,7 @@ try {
             $expenses_detail_stmt = $pdo->prepare("SELECT id, item_name, amount, payment_method, logged_by, date_time FROM expense_logs WHERE shift_id = ? ORDER BY date_time ASC, id ASC");
             $expenses_detail_stmt->execute([$shift_id]);
             $s['expenses'] = $expenses_detail_stmt->fetchAll();
+            $s['can_edit'] = isset($_SESSION['summary_edit_shift_id']) && intval($_SESSION['summary_edit_shift_id']) === $shift_id;
 
             // 4. Computed Metrics
             $s['pondo_total']  = $s['entry_sales'] + $s['extra_topups'];
@@ -143,6 +160,9 @@ try {
     </style>
 </head>
 <body>
+<?php if ($flash_message): ?>
+    <div class="flash-message"><?= htmlspecialchars($flash_message) ?></div>
+<?php endif; ?>
 
 <div class="header">
     <div class="brand-section">
@@ -189,12 +209,23 @@ try {
                 </div>
 
                 <?php foreach ($data['shifts'] as $s): ?>
-                    <div class="shift-block">
+                    <div class="shift-block <?= $s['can_edit'] ? '' : 'summary-readonly' ?>">
                         <div style="display:flex; justify-content:space-between; align-items:center;">
                             <div>
                                 <span class="tag-badge tag-<?= $s['shift_type'] ?>"><?= ucfirst($s['shift_type']) ?> Shift</span>
                                 <span style="font-size:12px; color:var(--text-muted); margin-left:8px;">Status: <b><?= strtoupper($s['status']) ?></b></span>
                             </div>
+                            <form method="POST" action="summary.php" id="unlock_<?= $s['id'] ?>">
+                                <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($_SESSION['csrf_token']) ?>">
+                                <input type="hidden" name="action" value="unlock_summary">
+                                <input type="hidden" name="shift_id" value="<?= $s['id'] ?>">
+                                <input type="hidden" name="summary_password" id="password_<?= $s['id'] ?>">
+                                <?php if ($s['can_edit']): ?>
+                                    <span style="color:#00b09b; font-size:12px; font-weight:bold;">Editing unlocked</span>
+                                <?php else: ?>
+                                    <button type="button" class="btn" style="padding:6px 14px; font-size:12px;" onclick="unlockSummary(<?= $s['id'] ?>)">Edit</button>
+                                <?php endif; ?>
+                            </form>
                         </div>
 
                         <div class="metric-grid">
@@ -250,7 +281,7 @@ try {
                                     <?php foreach ($s['entries'] as $entry): ?>
                                         <tr>
                                             <?php $form_id = 'sale_' . $entry['id']; ?>
-                                            <td><form id="<?= $form_id ?>" method="POST" action="summary.php"></form><input form="<?= $form_id ?>" type="hidden" name="csrf_token" value="<?= htmlspecialchars($_SESSION['csrf_token']) ?>"><input form="<?= $form_id ?>" type="hidden" name="action" value="update_sale"><input form="<?= $form_id ?>" type="hidden" name="shift_id" value="<?= $s['id'] ?>"><input form="<?= $form_id ?>" type="hidden" name="record_id" value="<?= $entry['id'] ?>"><input form="<?= $form_id ?>" type="number" name="amount" step="0.01" min="0.01" value="<?= htmlspecialchars($entry['amount']) ?>" required></td>
+                                            <td><form id="<?= $form_id ?>" method="POST" action="summary.php"></form><input form="<?= $form_id ?>" type="hidden" name="csrf_token" value="<?= htmlspecialchars($_SESSION['csrf_token']) ?>"><input form="<?= $form_id ?>" type="hidden" name="action" value="update_sale"><input form="<?= $form_id ?>" type="hidden" name="shift_id" value="<?= $s['id'] ?>"><input form="<?= $form_id ?>" type="hidden" name="record_id" value="<?= $entry['id'] ?>"><input form="<?= $form_id ?>" type="number" name="amount" step="0.01" min="0.01" value="<?= htmlspecialchars($entry['amount']) ?>" required <?= $s['can_edit'] ? '' : 'disabled' ?>></td>
                                             <td><select form="<?= $form_id ?>" name="payment_method"><option value="cash" <?= $entry['payment_method'] === 'cash' ? 'selected' : '' ?>>Cash</option><option value="gcash" <?= $entry['payment_method'] === 'gcash' ? 'selected' : '' ?>>GCash</option></select></td>
                                             <td><input form="<?= $form_id ?>" type="text" name="note" value="<?= htmlspecialchars($entry['note'] ?? '') ?>"></td>
                                             <td><?= htmlspecialchars($entry['logged_by']) ?></td>
@@ -316,6 +347,25 @@ try {
         <?php endforeach; ?>
     <?php endif; ?>
 </div>
+
+<script>
+function unlockSummary(shiftId) {
+    const password = prompt('Enter the summary edit password:');
+    if (password !== null && password !== '') {
+        document.getElementById('password_' + shiftId).value = password;
+        document.getElementById('unlock_' + shiftId).submit();
+    }
+}
+
+document.querySelectorAll('.summary-readonly').forEach(function (shift) {
+    shift.querySelectorAll('.summary-table-wrap input:not([type="hidden"]), .summary-table-wrap select').forEach(function (field) {
+        field.disabled = true;
+    });
+    shift.querySelectorAll('.summary-table-wrap button[type="submit"]').forEach(function (button) {
+        button.style.display = 'none';
+    });
+});
+</script>
 
 </body>
 </html>
