@@ -32,6 +32,42 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 
     $can_edit_shift = isset($_SESSION['summary_edit_shift_id']) && intval($_SESSION['summary_edit_shift_id']) === $shift_id;
+    if ($can_edit_shift && $shift_id > 0 && $amount > 0) {
+        if ($action === 'add_sale') {
+            $payment_method = ($_POST['payment_method'] ?? '') === 'gcash' ? 'gcash' : 'cash';
+            $note = trim($_POST['note'] ?? '');
+            $stmt = $pdo->prepare("INSERT INTO shift_log_entries (shift_id, amount, payment_method, note, logged_by, date_time) VALUES (?, ?, ?, ?, ?, NOW())");
+            $stmt->execute([$shift_id, $amount, $payment_method, $note, $logged_user]);
+            setFlashMessage('Sales entry added.');
+            header("Location: summary.php");
+            exit;
+        }
+
+        if ($action === 'add_topup') {
+            $account_name = trim($_POST['account_name'] ?? '');
+            $note = trim($_POST['note'] ?? '');
+            if ($account_name !== '') {
+                $stmt = $pdo->prepare("INSERT INTO balance_logs (shift_id, account_name, topup_added, note, logged_by, date_time) VALUES (?, ?, ?, ?, ?, NOW())");
+                $stmt->execute([$shift_id, $account_name, $amount, $note, $logged_user]);
+                setFlashMessage('Extra topup added.');
+            }
+            header("Location: summary.php");
+            exit;
+        }
+
+        if ($action === 'add_expense') {
+            $item_name = trim($_POST['item_name'] ?? '');
+            $payment_method = ($_POST['payment_method'] ?? '') === 'gcash' ? 'gcash' : 'cash';
+            if ($item_name !== '') {
+                $stmt = $pdo->prepare("INSERT INTO expense_logs (shift_id, item_name, amount, payment_method, logged_by, date_time) VALUES (?, ?, ?, ?, ?, NOW())");
+                $stmt->execute([$shift_id, $item_name, $amount, $payment_method, $logged_user]);
+                setFlashMessage('Expense added.');
+            }
+            header("Location: summary.php");
+            exit;
+        }
+    }
+
     if ($can_edit_shift && $shift_id > 0 && $record_id > 0 && $amount > 0) {
         if ($action === 'update_sale') {
             $payment_method = ($_POST['payment_method'] ?? '') === 'gcash' ? 'gcash' : 'cash';
@@ -294,6 +330,18 @@ try {
                             </div>
                         <?php endif; ?>
 
+                        <?php if ($s['can_edit']): ?>
+                            <form method="POST" action="summary.php" class="form-grid" style="align-items:end; margin-top:12px;">
+                                <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($_SESSION['csrf_token']) ?>">
+                                <input type="hidden" name="action" value="add_sale">
+                                <input type="hidden" name="shift_id" value="<?= $s['id'] ?>">
+                                <div><label>Amount</label><input type="number" name="amount" step="0.01" min="0.01" placeholder="e.g. 200" required></div>
+                                <div><label>Payment Method</label><select name="payment_method"><option value="cash">Cash</option><option value="gcash">GCash</option></select></div>
+                                <div><label>Note</label><input type="text" name="note" placeholder="Optional"></div>
+                                <div><button type="submit" class="btn btn-green" style="width:100%;">+ Add Entry</button></div>
+                            </form>
+                        <?php endif; ?>
+
                         <h4 class="summary-detail-title">Extra Topups</h4>
                         <?php if (empty($s['topups'])): ?>
                             <p style="color:var(--text-muted);">No extra topups recorded.</p>
@@ -318,6 +366,18 @@ try {
                             </div>
                         <?php endif; ?>
 
+                        <?php if ($s['can_edit']): ?>
+                            <form method="POST" action="summary.php" class="form-grid" style="align-items:end; margin-top:12px;">
+                                <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($_SESSION['csrf_token']) ?>">
+                                <input type="hidden" name="action" value="add_topup">
+                                <input type="hidden" name="shift_id" value="<?= $s['id'] ?>">
+                                <div><label>Account / Customer</label><input type="text" name="account_name" placeholder="e.g. Player_1" required></div>
+                                <div><label>Amount</label><input type="number" name="amount" step="0.01" min="0.01" placeholder="e.g. 0.40" required></div>
+                                <div><label>Note</label><input type="text" name="note" placeholder="Optional"></div>
+                                <div><button type="submit" class="btn btn-green" style="width:100%;">+ Add Topup</button></div>
+                            </form>
+                        <?php endif; ?>
+
                         <h4 class="summary-detail-title">Expenses</h4>
                         <?php if (empty($s['expenses'])): ?>
                             <p style="color:var(--text-muted);">No expenses recorded.</p>
@@ -340,6 +400,18 @@ try {
                                     </tbody>
                                 </table>
                             </div>
+                        <?php endif; ?>
+
+                        <?php if ($s['can_edit']): ?>
+                            <form method="POST" action="summary.php" class="form-grid" style="align-items:end; margin-top:12px;">
+                                <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($_SESSION['csrf_token']) ?>">
+                                <input type="hidden" name="action" value="add_expense">
+                                <input type="hidden" name="shift_id" value="<?= $s['id'] ?>">
+                                <div><label>Item / Description</label><input type="text" name="item_name" placeholder="e.g. Coffee" required></div>
+                                <div><label>Amount</label><input type="number" name="amount" step="0.01" min="0.01" placeholder="e.g. 150.00" required></div>
+                                <div><label>Payment Method</label><select name="payment_method"><option value="cash">Cash</option><option value="gcash">GCash</option></select></div>
+                                <div><button type="submit" class="btn btn-green" style="width:100%;">+ Add Expense</button></div>
+                            </form>
                         <?php endif; ?>
                     </div>
                 <?php endforeach; ?>
