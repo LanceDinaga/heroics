@@ -41,6 +41,38 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 
     $can_edit_shift = isset($_SESSION['summary_edit_shift_id']) && intval($_SESSION['summary_edit_shift_id']) === $shift_id;
+    if ($action === 'delete_shift' && $can_edit_shift && $shift_id > 0) {
+        $pdo->beginTransaction();
+        try {
+            foreach (['shift_log_entries', 'balance_logs', 'expense_logs', 'cash_counter_logs'] as $table) {
+                $stmt = $pdo->prepare("DELETE FROM {$table} WHERE shift_id = ?");
+                $stmt->execute([$shift_id]);
+            }
+            $stmt = $pdo->prepare("SELECT shift_period_id FROM shifts WHERE id = ?");
+            $stmt->execute([$shift_id]);
+            $period_id = $stmt->fetchColumn();
+            $stmt = $pdo->prepare("DELETE FROM shifts WHERE id = ?");
+            $stmt->execute([$shift_id]);
+            if ($period_id) {
+                $stmt = $pdo->prepare("DELETE FROM shift_periods WHERE id = ? AND NOT EXISTS (SELECT 1 FROM shifts WHERE shift_period_id = ?)");
+                $stmt->execute([$period_id, $period_id]);
+            }
+            $pdo->commit();
+            unset($_SESSION['summary_edit_shift_id']);
+            setFlashMessage('Shift summary deleted.');
+        } catch (PDOException $e) {
+            $pdo->rollBack();
+            throw $e;
+        }
+        header("Location: summary.php");
+        exit;
+    }
+    if ($action === 'delete_shift' && $shift_id > 0) {
+        setFlashMessage('Unlock this shift with the password before deleting it.');
+        header("Location: summary.php");
+        exit;
+    }
+
     if ($can_edit_shift && $shift_id > 0 && $amount > 0) {
         if ($action === 'add_sale') {
             $payment_method = ($_POST['payment_method'] ?? '') === 'gcash' ? 'gcash' : 'cash';
@@ -202,6 +234,8 @@ try {
         .summary-table-wrap { overflow-x: auto; }
         .summary-table-wrap table { min-width: 760px; }
         .summary-table-wrap input, .summary-table-wrap select { min-width: 90px; padding: 7px; }
+        .summary-details { margin-top: 18px; border-top: 1px solid var(--border-color); padding-top: 10px; }
+        .summary-details summary { cursor: pointer; color: var(--neon-pink); font-weight: bold; }
     </style>
 </head>
 <body>
@@ -272,6 +306,13 @@ try {
                                     <button type="button" class="btn" style="padding:6px 14px; font-size:12px;" onclick="unlockSummary(<?= $s['id'] ?>)">Edit</button>
                                 <?php endif; ?>
                             </form>
+                            <a href="export.php?shift_id=<?= $s['id'] ?>" class="btn btn-green" style="text-decoration:none; padding:6px 14px; font-size:12px;">Export Shift</a>
+                            <form method="POST" action="summary.php" onsubmit="return confirm('Are you sure you want to delete this entire shift summary? This will permanently delete all sales, topups, expenses, and cash counter records for this shift.');">
+                                <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($_SESSION['csrf_token']) ?>">
+                                <input type="hidden" name="action" value="delete_shift">
+                                <input type="hidden" name="shift_id" value="<?= $s['id'] ?>">
+                                <button type="submit" class="btn-danger" style="padding:6px 14px;">Delete Shift</button>
+                            </form>
                         </div>
 
                         <div class="metric-grid">
@@ -316,7 +357,8 @@ try {
                             </div>
                         </div>
 
-                        <h4 class="summary-detail-title">Sales Entries</h4>
+                        <details class="summary-details">
+                            <summary>Sales Entries (<?= count($s['entries']) ?>)</summary>
                         <?php if (empty($s['entries'])): ?>
                             <p style="color:var(--text-muted);">No sales entries recorded.</p>
                         <?php else: ?>
@@ -351,8 +393,10 @@ try {
                                 <div><button type="submit" class="btn btn-green" style="width:100%;">+ Add Entry</button></div>
                             </form>
                         <?php endif; ?>
+                        </details>
 
-                        <h4 class="summary-detail-title">Extra Topups</h4>
+                        <details class="summary-details">
+                            <summary>Extra Topups (<?= count($s['topups']) ?>)</summary>
                         <?php if (empty($s['topups'])): ?>
                             <p style="color:var(--text-muted);">No extra topups recorded.</p>
                         <?php else: ?>
@@ -387,8 +431,10 @@ try {
                                 <div><button type="submit" class="btn btn-green" style="width:100%;">+ Add Topup</button></div>
                             </form>
                         <?php endif; ?>
+                        </details>
 
-                        <h4 class="summary-detail-title">Expenses</h4>
+                        <details class="summary-details">
+                            <summary>Expenses (<?= count($s['expenses']) ?>)</summary>
                         <?php if (empty($s['expenses'])): ?>
                             <p style="color:var(--text-muted);">No expenses recorded.</p>
                         <?php else: ?>
@@ -411,6 +457,7 @@ try {
                                 </table>
                             </div>
                         <?php endif; ?>
+                        </details>
 
                         <?php if ($s['can_edit']): ?>
                             <form method="POST" action="summary.php" class="form-grid" style="align-items:end; margin-top:12px;">

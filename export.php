@@ -8,10 +8,19 @@ if (!isset($_SESSION['loggedin'])) {
 }
 
 $period_id = isset($_GET['period_id']) ? intval($_GET['period_id']) : null;
+$shift_id = isset($_GET['shift_id']) ? intval($_GET['shift_id']) : null;
 
 // Determine filename
 $filename = 'Export_Data_All_' . date('Y-m-d') . '.xls';
-if ($period_id) {
+if ($shift_id) {
+    $stmtP = $pdo->prepare("SELECT p.start_date FROM shifts s JOIN shift_periods p ON s.shift_period_id = p.id WHERE s.id = ?");
+    $stmtP->execute([$shift_id]);
+    $pStartDate = $stmtP->fetchColumn();
+    if ($pStartDate) {
+        $cleanLabel = date('M_j', strtotime($pStartDate)) . '_Shift_' . $shift_id;
+        $filename = "Export_Data_{$cleanLabel}.xls";
+    }
+} elseif ($period_id) {
     $stmtP = $pdo->prepare("SELECT start_date FROM shift_periods WHERE id = ?");
     $stmtP->execute([$period_id]);
     $pStartDate = $stmtP->fetchColumn();
@@ -60,7 +69,8 @@ header("Expires: 0");
             COALESCE((SELECT SUM(amount) FROM expense_logs WHERE shift_id = s.id AND payment_method = 'cash'), 0),
             COALESCE((SELECT SUM(amount) FROM expense_logs WHERE shift_id = s.id AND payment_method = 'gcash'), 0)
         FROM shifts s JOIN shift_periods p ON s.shift_period_id = p.id";
-    if ($period_id) { $sql1 .= " WHERE s.shift_period_id = " . $period_id; }
+    if ($shift_id) { $sql1 .= " WHERE s.id = " . $shift_id; }
+    elseif ($period_id) { $sql1 .= " WHERE s.shift_period_id = " . $period_id; }
     $sql1 .= " ORDER BY s.id ASC";
 
     $stmt1 = $pdo->query($sql1);
@@ -88,11 +98,12 @@ header("Expires: 0");
     </tr>
     <?php
     $sql_sales = "SELECT 
-            s.id, p.label, s.shift_type,
+            s.id, DATE_FORMAT(p.start_date, '%b %e'), s.shift_type,
             COALESCE((SELECT SUM(amount) FROM shift_log_entries WHERE shift_id = s.id AND payment_method = 'cash'), 0) AS cash_sales,
             COALESCE((SELECT SUM(amount) FROM shift_log_entries WHERE shift_id = s.id AND payment_method = 'gcash'), 0) AS gcash_sales
         FROM shifts s JOIN shift_periods p ON s.shift_period_id = p.id";
-    if ($period_id) { $sql_sales .= " WHERE s.shift_period_id = " . $period_id; }
+    if ($shift_id) { $sql_sales .= " WHERE s.id = " . $shift_id; }
+    elseif ($period_id) { $sql_sales .= " WHERE s.shift_period_id = " . $period_id; }
     $sql_sales .= " ORDER BY s.id ASC";
 
     $stmt_sales = $pdo->query($sql_sales);
@@ -121,7 +132,8 @@ header("Expires: 0");
     $sql2 = "SELECT e.id, DATE_FORMAT(p.start_date, '%b %e'), s.shift_type, e.amount, e.payment_method, e.note, e.logged_by,
             DATE_FORMAT(e.date_time, '%Y-%m-%d %H:%i') FROM shift_log_entries e 
             JOIN shifts s ON e.shift_id = s.id JOIN shift_periods p ON s.shift_period_id = p.id";
-    if ($period_id) { $sql2 .= " WHERE s.shift_period_id = " . $period_id; }
+    if ($shift_id) { $sql2 .= " WHERE s.id = " . $shift_id; }
+    elseif ($period_id) { $sql2 .= " WHERE s.shift_period_id = " . $period_id; }
     $sql2 .= " ORDER BY e.id ASC";
 
     $stmt2 = $pdo->query($sql2);
@@ -147,7 +159,8 @@ header("Expires: 0");
     $sql3 = "SELECT b.id, COALESCE(DATE_FORMAT(p.start_date, '%b %e'), 'N/A'), COALESCE(s.shift_type, 'N/A'), b.account_name, b.topup_added, b.note, b.logged_by,
             DATE_FORMAT(b.date_time, '%Y-%m-%d %H:%i') FROM balance_logs b 
             LEFT JOIN shifts s ON b.shift_id = s.id LEFT JOIN shift_periods p ON s.shift_period_id = p.id";
-    if ($period_id) { $sql3 .= " WHERE s.shift_period_id = " . $period_id; }
+    if ($shift_id) { $sql3 .= " WHERE s.id = " . $shift_id; }
+    elseif ($period_id) { $sql3 .= " WHERE s.shift_period_id = " . $period_id; }
     $sql3 .= " ORDER BY b.id ASC";
 
     $stmt3 = $pdo->query($sql3);
@@ -173,7 +186,8 @@ header("Expires: 0");
     $sql4 = "SELECT x.id, COALESCE(DATE_FORMAT(p.start_date, '%b %e'), 'N/A'), COALESCE(s.shift_type, 'N/A'), x.item_name, x.amount, x.payment_method, x.logged_by,
             DATE_FORMAT(x.date_time, '%Y-%m-%d %H:%i') FROM expense_logs x 
             LEFT JOIN shifts s ON x.shift_id = s.id LEFT JOIN shift_periods p ON s.shift_period_id = p.id";
-    if ($period_id) { $sql4 .= " WHERE s.shift_period_id = " . $period_id; }
+    if ($shift_id) { $sql4 .= " WHERE s.id = " . $shift_id; }
+    elseif ($period_id) { $sql4 .= " WHERE s.shift_period_id = " . $period_id; }
     $sql4 .= " ORDER BY x.id ASC";
 
     $stmt4 = $pdo->query($sql4);
