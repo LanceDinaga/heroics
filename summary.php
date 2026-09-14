@@ -281,13 +281,9 @@ try {
     <?php else: ?>
         <?php foreach ($periods_data as $data): ?>
             <div class="summary-card">
-                <!-- SHIFT PERIOD HEADER WITH UPPER-RIGHT EXPORT BUTTON -->
+                <!-- SHIFT PERIOD HEADER -->
                 <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid rgba(255,255,255,0.1); padding-bottom: 12px; margin-bottom: 15px;">
                     <h3 style="color:var(--neon-pink); margin:0;">📅 Shift Day: <?= htmlspecialchars(date('M j', strtotime($data['period']['start_date']))) ?></h3>
-                    
-                    <a href="export.php?period_id=<?= $data['period']['id'] ?>" class="btn btn-green" style="text-decoration:none; padding: 6px 14px; font-size:12px; font-weight:bold;">
-                        📥 Export Data
-                    </a>
                 </div>
 
                 <?php foreach ($data['shifts'] as $s): ?>
@@ -297,27 +293,29 @@ try {
                                 <span class="tag-badge tag-<?= $s['shift_type'] ?>"><?= ucfirst($s['shift_type']) ?> Shift</span>
                                 <span style="font-size:12px; color:var(--text-muted); margin-left:8px;">Status: <b><?= strtoupper($s['status']) ?></b></span>
                             </div>
-                            <form method="POST" action="summary.php" id="unlock_<?= $s['id'] ?>">
-                                <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($_SESSION['csrf_token']) ?>">
-                                <input type="hidden" name="shift_id" value="<?= $s['id'] ?>">
-                                <?php if ($s['can_edit']): ?>
-                                    <input type="hidden" name="action" value="lock_summary">
-                                    <button type="submit" class="btn" style="padding:6px 14px; font-size:12px;">Done Editing</button>
-                                <?php else: ?>
-                                    <input type="hidden" name="action" value="unlock_summary">
-                                    <input type="hidden" name="summary_password" id="password_<?= $s['id'] ?>">
-                                    <button type="button" class="btn" style="padding:6px 14px; font-size:12px;" onclick="unlockSummary(<?= $s['id'] ?>)">Edit</button>
-                                <?php endif; ?>
-                            </form>
-                            <a href="export.php?shift_id=<?= $s['id'] ?>" class="btn btn-green" style="text-decoration:none; padding:6px 14px; font-size:12px;">Export Shift</a>
-                            <?php if ($s['can_edit']): ?>
-                                <form method="POST" action="summary.php" onsubmit="return confirm('Are you sure you want to delete this entire shift summary? This will permanently delete all sales, topups, expenses, and cash counter records for this shift.');">
+                            <div style="display:flex; align-items:center; gap:8px;">
+                                <form method="POST" action="summary.php" id="unlock_<?= $s['id'] ?>">
                                     <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($_SESSION['csrf_token']) ?>">
-                                    <input type="hidden" name="action" value="delete_shift">
                                     <input type="hidden" name="shift_id" value="<?= $s['id'] ?>">
-                                    <button type="submit" class="btn-danger" style="padding:6px 14px;">Delete Shift</button>
+                                    <?php if ($s['can_edit']): ?>
+                                        <input type="hidden" name="action" value="lock_summary">
+                                        <button type="submit" class="btn" style="padding:6px 14px; font-size:12px;">Done Editing</button>
+                                    <?php else: ?>
+                                        <input type="hidden" name="action" value="unlock_summary">
+                                        <input type="hidden" name="summary_password" id="password_<?= $s['id'] ?>">
+                                        <button type="button" class="btn" style="padding:6px 14px; font-size:12px;" onclick="unlockSummary(<?= $s['id'] ?>)">Edit</button>
+                                    <?php endif; ?>
                                 </form>
-                            <?php endif; ?>
+                                <a href="export.php?shift_id=<?= $s['id'] ?>" class="btn btn-green" style="text-decoration:none; padding:6px 14px; font-size:12px;">Export Shift</a>
+                                <?php if ($s['can_edit']): ?>
+                                    <form method="POST" action="summary.php" onsubmit="return confirm('Are you sure you want to delete this entire shift summary? This will permanently delete all sales, topups, expenses, and cash counter records for this shift.');">
+                                        <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($_SESSION['csrf_token']) ?>">
+                                        <input type="hidden" name="action" value="delete_shift">
+                                        <input type="hidden" name="shift_id" value="<?= $s['id'] ?>">
+                                        <button type="submit" class="btn-danger" style="padding:6px 14px;">Delete Shift</button>
+                                    </form>
+                                <?php endif; ?>
+                            </div>
                         </div>
 
                         <div class="metric-grid">
