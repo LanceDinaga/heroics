@@ -236,6 +236,9 @@ try {
         .summary-table-wrap input, .summary-table-wrap select { min-width: 90px; padding: 7px; }
         .summary-details { margin-top: 18px; border-top: 1px solid var(--border-color); padding-top: 10px; }
         .summary-details summary { cursor: pointer; color: var(--neon-pink); font-weight: bold; }
+        .password-modal { display:none; position:fixed; inset:0; background:rgba(0,0,0,0.7); align-items:center; justify-content:center; z-index:10; }
+        .password-modal-card { background:var(--card-bg); border:1px solid var(--border-color); border-radius:10px; padding:24px; width:min(90%, 360px); box-shadow:0 0 25px rgba(0,0,0,0.5); }
+        .password-modal-card h3 { margin-top:0; color:#fff; }
     </style>
 </head>
 <body>
@@ -307,12 +310,14 @@ try {
                                 <?php endif; ?>
                             </form>
                             <a href="export.php?shift_id=<?= $s['id'] ?>" class="btn btn-green" style="text-decoration:none; padding:6px 14px; font-size:12px;">Export Shift</a>
-                            <form method="POST" action="summary.php" onsubmit="return confirm('Are you sure you want to delete this entire shift summary? This will permanently delete all sales, topups, expenses, and cash counter records for this shift.');">
-                                <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($_SESSION['csrf_token']) ?>">
-                                <input type="hidden" name="action" value="delete_shift">
-                                <input type="hidden" name="shift_id" value="<?= $s['id'] ?>">
-                                <button type="submit" class="btn-danger" style="padding:6px 14px;">Delete Shift</button>
-                            </form>
+                            <?php if ($s['can_edit']): ?>
+                                <form method="POST" action="summary.php" onsubmit="return confirm('Are you sure you want to delete this entire shift summary? This will permanently delete all sales, topups, expenses, and cash counter records for this shift.');">
+                                    <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($_SESSION['csrf_token']) ?>">
+                                    <input type="hidden" name="action" value="delete_shift">
+                                    <input type="hidden" name="shift_id" value="<?= $s['id'] ?>">
+                                    <button type="submit" class="btn-danger" style="padding:6px 14px;">Delete Shift</button>
+                                </form>
+                            <?php endif; ?>
                         </div>
 
                         <div class="metric-grid">
@@ -477,12 +482,42 @@ try {
     <?php endif; ?>
 </div>
 
+<div class="password-modal" id="password-modal" role="dialog" aria-modal="true" aria-labelledby="password-modal-title">
+    <div class="password-modal-card">
+        <h3 id="password-modal-title">Unlock Summary Editing</h3>
+        <form id="password-modal-form" onsubmit="submitPassword(event)">
+            <label for="summary-password-input">Password</label>
+            <input id="summary-password-input" type="password" autocomplete="current-password" required>
+            <div style="display:flex; gap:8px; justify-content:flex-end; margin-top:15px;">
+                <button type="button" class="btn-danger" onclick="closePasswordModal()">Cancel</button>
+                <button type="submit" class="btn btn-green">Unlock</button>
+            </div>
+        </form>
+    </div>
+</div>
+
 <script>
+let unlockShiftId = null;
+
 function unlockSummary(shiftId) {
-    const password = prompt('Enter the summary edit password:');
-    if (password !== null && password !== '') {
-        document.getElementById('password_' + shiftId).value = password;
-        document.getElementById('unlock_' + shiftId).submit();
+    unlockShiftId = shiftId;
+    const modal = document.getElementById('password-modal');
+    modal.style.display = 'flex';
+    document.getElementById('summary-password-input').value = '';
+    document.getElementById('summary-password-input').focus();
+}
+
+function closePasswordModal() {
+    document.getElementById('password-modal').style.display = 'none';
+    unlockShiftId = null;
+}
+
+function submitPassword(event) {
+    event.preventDefault();
+    const password = document.getElementById('summary-password-input').value;
+    if (unlockShiftId !== null && password !== '') {
+        document.getElementById('password_' + unlockShiftId).value = password;
+        document.getElementById('unlock_' + unlockShiftId).submit();
     }
 }
 
