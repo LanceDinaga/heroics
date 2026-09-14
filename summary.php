@@ -145,7 +145,7 @@ $flash_message = getFlashMessage();
 try {
     $periods = $pdo->query("SELECT * FROM shift_periods ORDER BY id DESC")->fetchAll();
     foreach ($periods as $p) {
-        $stmt = $pdo->prepare("SELECT * FROM shifts WHERE shift_period_id = ? ORDER BY FIELD(shift_type,'morning','night')");
+        $stmt = $pdo->prepare("SELECT * FROM shifts WHERE shift_period_id = ? ORDER BY id DESC");
         $stmt->execute([$p['id']]);
         $shifts = $stmt->fetchAll();
 
