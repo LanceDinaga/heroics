@@ -73,6 +73,30 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         exit;
     }
 
+    if ($action === 'update_cash_counter' && $can_edit_shift && $shift_id > 0) {
+        $denominations = ['c1000', 'c500', 'c200', 'c100', 'c50', 'c20', 'c10', 'c5', 'c1'];
+        $counts = [];
+        foreach ($denominations as $denomination) {
+            $counts[$denomination] = max(0, intval($_POST[$denomination] ?? 0));
+        }
+        $gcash = max(0, floatval($_POST['gcash'] ?? 0));
+        $cash_total = ($counts['c1000'] * 1000) + ($counts['c500'] * 500) + ($counts['c200'] * 200) + ($counts['c100'] * 100) + ($counts['c50'] * 50) + ($counts['c20'] * 20) + ($counts['c10'] * 10) + ($counts['c5'] * 5) + $counts['c1'];
+        $grand_total = $cash_total + $gcash;
+
+        $stmt = $pdo->prepare("SELECT id FROM cash_counter_logs WHERE shift_id = ? ORDER BY id DESC LIMIT 1");
+        $stmt->execute([$shift_id]);
+        $counter_id = $stmt->fetchColumn();
+        if ($counter_id) {
+            $stmt = $pdo->prepare("UPDATE cash_counter_logs SET c1000 = ?, c500 = ?, c200 = ?, c100 = ?, c50 = ?, c20 = ?, c10 = ?, c5 = ?, c1 = ?, gcash = ?, grand_total = ? WHERE id = ? AND shift_id = ?");
+            $stmt->execute([$counts['c1000'], $counts['c500'], $counts['c200'], $counts['c100'], $counts['c50'], $counts['c20'], $counts['c10'], $counts['c5'], $counts['c1'], $gcash, $grand_total, $counter_id, $shift_id]);
+            $stmt = $pdo->prepare("UPDATE shifts SET starting_cash = ?, starting_gcash = ? WHERE id = ?");
+            $stmt->execute([$cash_total, $gcash, $shift_id]);
+            setFlashMessage('Cash counter updated.');
+        }
+        header("Location: summary.php");
+        exit;
+    }
+
     if ($can_edit_shift && $shift_id > 0 && $amount > 0) {
         if ($action === 'add_sale') {
             $payment_method = ($_POST['payment_method'] ?? '') === 'gcash' ? 'gcash' : 'cash';
@@ -189,6 +213,9 @@ try {
             $expenses_detail_stmt = $pdo->prepare("SELECT id, item_name, amount, payment_method, logged_by, date_time FROM expense_logs WHERE shift_id = ? ORDER BY date_time ASC, id ASC");
             $expenses_detail_stmt->execute([$shift_id]);
             $s['expenses'] = $expenses_detail_stmt->fetchAll();
+            $counter_stmt = $pdo->prepare("SELECT id, c1000, c500, c200, c100, c50, c20, c10, c5, c1, gcash, grand_total, logged_by, date_time FROM cash_counter_logs WHERE shift_id = ? ORDER BY id DESC LIMIT 1");
+            $counter_stmt->execute([$shift_id]);
+            $s['cash_counter'] = $counter_stmt->fetch() ?: null;
             $s['can_edit'] = isset($_SESSION['summary_edit_shift_id']) && intval($_SESSION['summary_edit_shift_id']) === $shift_id;
 
             // 4. Computed Metrics
@@ -306,7 +333,7 @@ try {
                                         <button type="button" class="btn" style="padding:6px 14px; font-size:12px;" onclick="unlockSummary(<?= $s['id'] ?>)">Edit</button>
                                     <?php endif; ?>
                                 </form>
-                                <a href="export.php?shift_id=<?= $s['id'] ?>" class="btn btn-green" style="text-decoration:none; padding:6px 14px; font-size:12px;">Export Shift</a>
+                                <a href="export.php?shift_id=<?= $s['id'] ?>" class="btn" style="text-decoration:none; padding:6px 14px; font-size:12px;">Export Shift</a>
                                 <?php if ($s['can_edit']): ?>
                                     <form method="POST" action="summary.php" onsubmit="return confirm('Are you sure you want to delete this entire shift summary? This will permanently delete all sales, topups, expenses, and cash counter records for this shift.');">
                                         <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($_SESSION['csrf_token']) ?>">
@@ -359,6 +386,29 @@ try {
                                 <div style="font-size:10px; color:var(--text-muted); margin-top:3px;">GCash Exp: ₱<?= number_format($s['gcash_expenses'],2) ?></div>
                             </div>
                         </div>
+
+                        <details class="summary-details">
+                            <summary>Cash Counter<?= $s['cash_counter'] ? ' (₱' . number_format((float) $s['cash_counter']['grand_total'], 2) . ')' : '' ?></summary>
+                            <?php if (!$s['cash_counter']): ?>
+                                <p style="color:var(--text-muted);">No cash counter recorded.</p>
+                            <?php else: ?>
+                                <form method="POST" action="summary.php" class="form-grid" style="align-items:end; margin-top:12px;">
+                                    <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($_SESSION['csrf_token']) ?>">
+                                    <input type="hidden" name="action" value="update_cash_counter">
+                                    <input type="hidden" name="shift_id" value="<?= $s['id'] ?>">
+                                    <?php foreach (['c1000' => '₱1,000', 'c500' => '₱500', 'c200' => '₱200', 'c100' => '₱100', 'c50' => '₱50', 'c20' => '₱20', 'c10' => '₱10', 'c5' => '₱5', 'c1' => '₱1'] as $field => $label): ?>
+                                        <div><label><?= $label ?></label><input type="number" name="<?= $field ?>" min="0" value="<?= htmlspecialchars($s['cash_counter'][$field]) ?>" <?= $s['can_edit'] ? '' : 'disabled' ?>></div>
+                                    <?php endforeach; ?>
+                                    <div><label>GCash Balance</label><input type="number" name="gcash" step="0.01" min="0" value="<?= htmlspecialchars($s['cash_counter']['gcash']) ?>" <?= $s['can_edit'] ? '' : 'disabled' ?>></div>
+                                    <div><label>Cash Total</label><input type="text" value="₱<?= number_format($s['starting_cash'], 2) ?>" disabled></div>
+                                    <div><label>Logged By</label><input type="text" value="<?= htmlspecialchars($s['cash_counter']['logged_by']) ?>" disabled></div>
+                                    <div><label>Date / Time</label><input type="text" value="<?= htmlspecialchars($s['cash_counter']['date_time']) ?>" disabled></div>
+                                    <?php if ($s['can_edit']): ?>
+                                        <div><button type="submit" class="btn btn-green" style="width:100%;">Save Cash Counter</button></div>
+                                    <?php endif; ?>
+                                </form>
+                            <?php endif; ?>
+                        </details>
 
                         <details class="summary-details">
                             <summary>Sales Entries (<?= count($s['entries']) ?>)</summary>
