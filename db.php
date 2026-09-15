@@ -1,6 +1,8 @@
 <?php
 // db.php - Database connection & global session setup
 
+date_default_timezone_set('Asia/Manila');
+
 // Suppress server-level session directory permissions warnings on free hosting
 if (session_status() === PHP_SESSION_NONE) {
     @session_start();
@@ -36,6 +38,7 @@ $options = [
 
 try {
     $pdo = new PDO($dsn, $user, $pass, $options);
+    $pdo->exec("SET time_zone = '+08:00'");
 } catch (\PDOException $e) {
     die("Database connection failed: " . $e->getMessage());
 }
