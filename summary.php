@@ -91,6 +91,22 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $stmt->execute([$counts['c1000'], $counts['c500'], $counts['c200'], $counts['c100'], $counts['c50'], $counts['c20'], $counts['c10'], $counts['c5'], $counts['c1'], $gcash, $grand_total, $counter_id, $shift_id]);
             $stmt = $pdo->prepare("UPDATE shifts SET starting_cash = ?, starting_gcash = ? WHERE id = ?");
             $stmt->execute([$cash_total, $gcash, $shift_id]);
+            $stmt = $pdo->prepare("SELECT payment_method, COALESCE(SUM(amount), 0) AS total FROM shift_log_entries WHERE shift_id = ? GROUP BY payment_method");
+            $stmt->execute([$shift_id]);
+            $sales = ['cash' => 0.0, 'gcash' => 0.0];
+            foreach ($stmt->fetchAll() as $row) {
+                $sales[$row['payment_method']] = floatval($row['total']);
+            }
+            $stmt = $pdo->prepare("SELECT COALESCE(payment_method, 'cash') AS payment_method, COALESCE(SUM(amount), 0) AS total FROM expense_logs WHERE shift_id = ? GROUP BY payment_method");
+            $stmt->execute([$shift_id]);
+            $expenses = ['cash' => 0.0, 'gcash' => 0.0];
+            foreach ($stmt->fetchAll() as $row) {
+                $expenses[$row['payment_method']] = floatval($row['total']);
+            }
+            $ending_cash = $cash_total + $sales['cash'] - $expenses['cash'];
+            $ending_gcash = $gcash + $sales['gcash'] - $expenses['gcash'];
+            $stmt = $pdo->prepare("UPDATE shifts SET ending_cash = ?, ending_gcash = ? WHERE id = ?");
+            $stmt->execute([$ending_cash, $ending_gcash, $shift_id]);
             setFlashMessage('Cash counter updated.');
         }
         header("Location: summary.php");
