@@ -10,6 +10,34 @@ if (!isset($_SESSION['loggedin'])) {
 $logged_user = $_SESSION['username'];
 $user_role   = $_SESSION['role'] ?? 'staff';
 
+function recalculateShiftEnding($pdo, $shift_id) {
+    $stmt = $pdo->prepare("SELECT payment_method, COALESCE(SUM(amount), 0) AS total FROM shift_log_entries WHERE shift_id = ? GROUP BY payment_method");
+    $stmt->execute([$shift_id]);
+    $sales = ['cash' => 0.0, 'gcash' => 0.0];
+    foreach ($stmt->fetchAll() as $row) {
+        $sales[$row['payment_method']] = floatval($row['total']);
+    }
+
+    $stmt = $pdo->prepare("SELECT starting_cash, starting_gcash FROM shifts WHERE id = ?");
+    $stmt->execute([$shift_id]);
+    $starting = $stmt->fetch();
+    if (!$starting) {
+        return;
+    }
+
+    $stmt = $pdo->prepare("SELECT COALESCE(payment_method, 'cash') AS payment_method, COALESCE(SUM(amount), 0) AS total FROM expense_logs WHERE shift_id = ? GROUP BY payment_method");
+    $stmt->execute([$shift_id]);
+    $expenses = ['cash' => 0.0, 'gcash' => 0.0];
+    foreach ($stmt->fetchAll() as $row) {
+        $expenses[$row['payment_method']] = floatval($row['total']);
+    }
+
+    $ending_cash = floatval($starting['starting_cash']) + $sales['cash'] - $expenses['cash'];
+    $ending_gcash = floatval($starting['starting_gcash']) + $sales['gcash'] - $expenses['gcash'];
+    $stmt = $pdo->prepare("UPDATE shifts SET ending_cash = ?, ending_gcash = ? WHERE id = ?");
+    $stmt->execute([$ending_cash, $ending_gcash, $shift_id]);
+}
+
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (!isset($_POST['csrf_token']) || $_POST['csrf_token'] !== $_SESSION['csrf_token']) {
         die("CSRF validation failed.");
@@ -91,22 +119,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $stmt->execute([$counts['c1000'], $counts['c500'], $counts['c200'], $counts['c100'], $counts['c50'], $counts['c20'], $counts['c10'], $counts['c5'], $counts['c1'], $gcash, $grand_total, $counter_id, $shift_id]);
             $stmt = $pdo->prepare("UPDATE shifts SET starting_cash = ?, starting_gcash = ? WHERE id = ?");
             $stmt->execute([$cash_total, $gcash, $shift_id]);
-            $stmt = $pdo->prepare("SELECT payment_method, COALESCE(SUM(amount), 0) AS total FROM shift_log_entries WHERE shift_id = ? GROUP BY payment_method");
-            $stmt->execute([$shift_id]);
-            $sales = ['cash' => 0.0, 'gcash' => 0.0];
-            foreach ($stmt->fetchAll() as $row) {
-                $sales[$row['payment_method']] = floatval($row['total']);
-            }
-            $stmt = $pdo->prepare("SELECT COALESCE(payment_method, 'cash') AS payment_method, COALESCE(SUM(amount), 0) AS total FROM expense_logs WHERE shift_id = ? GROUP BY payment_method");
-            $stmt->execute([$shift_id]);
-            $expenses = ['cash' => 0.0, 'gcash' => 0.0];
-            foreach ($stmt->fetchAll() as $row) {
-                $expenses[$row['payment_method']] = floatval($row['total']);
-            }
-            $ending_cash = $cash_total + $sales['cash'] - $expenses['cash'];
-            $ending_gcash = $gcash + $sales['gcash'] - $expenses['gcash'];
-            $stmt = $pdo->prepare("UPDATE shifts SET ending_cash = ?, ending_gcash = ? WHERE id = ?");
-            $stmt->execute([$ending_cash, $ending_gcash, $shift_id]);
+            recalculateShiftEnding($pdo, $shift_id);
             setFlashMessage('Cash counter updated.');
         }
         header("Location: summary.php");
@@ -119,6 +132,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $note = trim($_POST['note'] ?? '');
             $stmt = $pdo->prepare("INSERT INTO shift_log_entries (shift_id, amount, payment_method, note, logged_by, date_time) VALUES (?, ?, ?, ?, ?, NOW())");
             $stmt->execute([$shift_id, $amount, $payment_method, $note, $logged_user]);
+            recalculateShiftEnding($pdo, $shift_id);
             setFlashMessage('Sales entry added.');
             header("Location: summary.php");
             exit;
@@ -130,6 +144,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             if ($account_name !== '') {
                 $stmt = $pdo->prepare("INSERT INTO balance_logs (shift_id, account_name, topup_added, note, logged_by, date_time) VALUES (?, ?, ?, ?, ?, NOW())");
                 $stmt->execute([$shift_id, $account_name, $amount, $note, $logged_user]);
+                recalculateShiftEnding($pdo, $shift_id);
                 setFlashMessage('Extra topup added.');
             }
             header("Location: summary.php");
@@ -142,6 +157,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             if ($item_name !== '') {
                 $stmt = $pdo->prepare("INSERT INTO expense_logs (shift_id, item_name, amount, payment_method, logged_by, date_time) VALUES (?, ?, ?, ?, ?, NOW())");
                 $stmt->execute([$shift_id, $item_name, $amount, $payment_method, $logged_user]);
+                recalculateShiftEnding($pdo, $shift_id);
                 setFlashMessage('Expense added.');
             }
             header("Location: summary.php");
@@ -155,6 +171,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $note = trim($_POST['note'] ?? '');
             $stmt = $pdo->prepare("UPDATE shift_log_entries SET amount = ?, payment_method = ?, note = ? WHERE id = ? AND shift_id = ?");
             $stmt->execute([$amount, $payment_method, $note, $record_id, $shift_id]);
+            recalculateShiftEnding($pdo, $shift_id);
             setFlashMessage('Sales entry updated.');
         } elseif ($action === 'update_topup') {
             $account_name = trim($_POST['account_name'] ?? '');
@@ -162,6 +179,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             if ($account_name !== '') {
                 $stmt = $pdo->prepare("UPDATE balance_logs SET account_name = ?, topup_added = ?, note = ? WHERE id = ? AND shift_id = ?");
                 $stmt->execute([$account_name, $amount, $note, $record_id, $shift_id]);
+                recalculateShiftEnding($pdo, $shift_id);
                 setFlashMessage('Extra topup updated.');
             }
         } elseif ($action === 'update_expense') {
@@ -170,6 +188,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             if ($item_name !== '') {
                 $stmt = $pdo->prepare("UPDATE expense_logs SET item_name = ?, amount = ?, payment_method = ? WHERE id = ? AND shift_id = ?");
                 $stmt->execute([$item_name, $amount, $payment_method, $record_id, $shift_id]);
+                recalculateShiftEnding($pdo, $shift_id);
                 setFlashMessage('Expense updated.');
             }
         }
