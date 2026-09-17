@@ -28,6 +28,7 @@ if (isset($_POST['action']) && $_POST['action'] === 'create_user') {
         try {
             $stmt = $pdo->prepare("INSERT INTO users (username, password, role) VALUES (?, ?, ?)");
             $stmt->execute([$new_user, $hashed, $new_role]);
+            logActivity($pdo, 'create_user', 'Created a user account.', ['username' => $new_user, 'role' => $new_role]);
             $msg = "User '{$new_user}' created successfully!";
         } catch (PDOException $e) {
             $error = "Username already exists.";
@@ -63,6 +64,7 @@ if (isset($_POST['action']) && $_POST['action'] === 'update_user') {
                 $_SESSION['role'] = $up_role;
             }
 
+            logActivity($pdo, 'update_user', 'Updated a user account.', ['user_id' => $user_id, 'username' => $up_user, 'role' => $up_role]);
             $msg = "User details updated successfully!";
         } catch (PDOException $e) {
             $error = "Username '{$up_user}' is already taken.";
@@ -84,6 +86,7 @@ if (isset($_GET['delete_id']) && isset($_GET['csrf_token'])) {
             } else {
                 $stmt = $pdo->prepare("DELETE FROM users WHERE id = ?");
                 $stmt->execute([$del_id]);
+                logActivity($pdo, 'delete_user', 'Deleted a staff account.', ['user_id' => $del_id, 'username' => $target_user['username']]);
                 header("Location: users.php?msg=deleted");
                 exit;
             }
@@ -126,6 +129,7 @@ $users = $pdo->query("SELECT * FROM users ORDER BY id ASC")->fetchAll();
             Logged in as: <b><?= htmlspecialchars($logged_user); ?></b> (<?= ucfirst($_SESSION['role']); ?>) | 
             <a href="index.php">Dashboard</a> | 
             <a href="shifts.php">Shifts</a> |
+            <a href="activity_logs.php">Activity Logs</a> |
             <a href="logout.php">Logout</a>
         </div>
     </div>

@@ -19,6 +19,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $_SESSION['user_id']  = $user['id'];
             $_SESSION['username'] = $user['username'];
             $_SESSION['role']     = $user['role'] ?? 'staff'; // Fetches role from DB dynamically
+            logActivity($pdo, 'login', 'User logged in.');
 
             header("Location: index.php");
             exit;

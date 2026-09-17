@@ -112,6 +112,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             // Start shift with 0.00 starting balances initially (will auto-update when cash counter is submitted)
             $stmt = $pdo->prepare("INSERT INTO shifts (shift_period_id, shift_type, starting_cash, starting_gcash, status, opened_by, opened_at) VALUES (?, ?, 0, 0, 'open', ?, NOW())");
             $stmt->execute([$shift_period_id, $shift_type, $logged_user]);
+            logActivity($pdo, 'start_shift', 'Started a shift.', ['shift_id' => $pdo->lastInsertId(), 'shift_type' => $shift_type]);
             setFlashMessage('Shift started.');
         }
         
@@ -131,6 +132,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if ($check->fetch() && $amount > 0) {
             $stmt = $pdo->prepare("INSERT INTO shift_log_entries (shift_id, amount, payment_method, note, logged_by, date_time) VALUES (?, ?, ?, ?, ?, NOW())");
             $stmt->execute([$shift_id, $amount, $method, $note, $logged_user]);
+            logActivity($pdo, 'add_sale', 'Added a shift sale.', ['shift_id' => $shift_id, 'amount' => $amount, 'payment_method' => $method]);
             setFlashMessage('Shift sale saved.');
         }
         header("Location: shifts.php");
@@ -144,6 +146,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $note     = trim($_POST['note'] ?? '');
         $stmt = $pdo->prepare("UPDATE shift_log_entries SET amount = ?, payment_method = ?, note = ? WHERE id = ?");
         $stmt->execute([$amount, $method, $note, $entry_id]);
+        logActivity($pdo, 'update_sale', 'Updated a shift sale.', ['entry_id' => $entry_id, 'amount' => $amount]);
         setFlashMessage('Shift sale updated.');
         header("Location: shifts.php");
         exit;
@@ -164,6 +167,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
             $stmt = $pdo->prepare("UPDATE shifts SET status='closed', ending_cash=?, ending_gcash=?, closed_by=?, closed_at=NOW(), notes=? WHERE id=?");
             $stmt->execute([$ending['cash'], $ending['gcash'], $logged_user, $close_note, $shift_id]);
+            logActivity($pdo, 'close_shift', 'Closed a shift.', ['shift_id' => $shift_id, 'ending_cash' => $ending['cash'], 'ending_gcash' => $ending['gcash']]);
             setFlashMessage('Shift closed.');
         }
         header("Location: shifts.php");
@@ -175,6 +179,7 @@ if (isset($_GET['delete_entry']) && isset($_GET['csrf_token'])) {
     if ($_GET['csrf_token'] === $_SESSION['csrf_token']) {
         $stmt = $pdo->prepare("DELETE FROM shift_log_entries WHERE id = ?");
         $stmt->execute([intval($_GET['delete_entry'])]);
+        logActivity($pdo, 'delete_sale', 'Deleted a shift sale.', ['entry_id' => intval($_GET['delete_entry'])]);
         setFlashMessage('Shift sale deleted.');
     }
     header("Location: shifts.php");
@@ -267,6 +272,7 @@ try {
     <a href="summary.php" class="nav-btn">Daily Summary</a>
     <?php if ($user_role === 'admin'): ?>
         <a href="users.php" class="nav-btn" style="border-color:#ff007f;color:#ff007f;">+ Manage Users</a>
+        <a href="activity_logs.php" class="nav-btn" style="border-color:#ff007f;color:#ff007f;">Activity Logs</a>
     <?php endif; ?>
 </div>
 

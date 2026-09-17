@@ -1,6 +1,9 @@
 <?php
 // logout.php
-session_start();
+require 'db.php';
+
+$logout_user = $_SESSION['username'] ?? 'guest';
+logActivity($pdo, 'logout', 'User logged out.', ['username' => $logout_user]);
 
 // Unset all session variables
 $_SESSION = array();

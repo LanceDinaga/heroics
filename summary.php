@@ -51,6 +51,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if ($action === 'unlock_summary' && $shift_id > 0) {
         if (hash_equals('heroics', (string) ($_POST['summary_password'] ?? ''))) {
             $_SESSION['summary_edit_shift_id'] = $shift_id;
+            logActivity($pdo, 'unlock_summary', 'Unlocked summary editing.', ['shift_id' => $shift_id]);
             setFlashMessage('Summary editing unlocked for this shift.');
         } else {
             setFlashMessage('Incorrect summary password.');
@@ -62,6 +63,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if ($action === 'lock_summary' && $shift_id > 0) {
         if (isset($_SESSION['summary_edit_shift_id']) && intval($_SESSION['summary_edit_shift_id']) === $shift_id) {
             unset($_SESSION['summary_edit_shift_id']);
+            logActivity($pdo, 'lock_summary', 'Finished summary editing.', ['shift_id' => $shift_id]);
             setFlashMessage('Summary editing finished.');
         }
         header("Location: summary.php");
@@ -86,6 +88,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $stmt->execute([$period_id, $period_id]);
             }
             $pdo->commit();
+            logActivity($pdo, 'delete_shift', 'Deleted an entire shift summary.', ['shift_id' => $shift_id]);
             unset($_SESSION['summary_edit_shift_id']);
             setFlashMessage('Shift summary deleted.');
         } catch (PDOException $e) {
@@ -111,6 +114,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             [$table, $message] = $delete_tables[$action];
             $stmt = $pdo->prepare("DELETE FROM {$table} WHERE id = ? AND shift_id = ?");
             $stmt->execute([$record_id, $shift_id]);
+            logActivity($pdo, $action, 'Deleted a shift summary record.', ['shift_id' => $shift_id, 'record_id' => $record_id]);
             recalculateShiftEnding($pdo, $shift_id);
             setFlashMessage($message);
             header("Location: summary.php");
@@ -123,6 +127,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $stmt->execute([$record_id, $shift_id]);
         $stmt = $pdo->prepare("UPDATE shifts SET starting_cash = 0, starting_gcash = 0 WHERE id = ?");
         $stmt->execute([$shift_id]);
+        logActivity($pdo, 'delete_cash_counter', 'Deleted the cash counter and reset starting balances.', ['shift_id' => $shift_id, 'record_id' => $record_id]);
         recalculateShiftEnding($pdo, $shift_id);
         setFlashMessage('Cash counter deleted and starting balances reset.');
         header("Location: summary.php");
@@ -148,6 +153,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $stmt = $pdo->prepare("UPDATE shifts SET starting_cash = ?, starting_gcash = ? WHERE id = ?");
             $stmt->execute([$cash_total, $gcash, $shift_id]);
             recalculateShiftEnding($pdo, $shift_id);
+            logActivity($pdo, 'update_cash_counter', 'Updated a cash counter.', ['shift_id' => $shift_id, 'grand_total' => $grand_total]);
             setFlashMessage('Cash counter updated.');
         }
         header("Location: summary.php");
@@ -161,6 +167,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $stmt = $pdo->prepare("INSERT INTO shift_log_entries (shift_id, amount, payment_method, note, logged_by, date_time) VALUES (?, ?, ?, ?, ?, NOW())");
             $stmt->execute([$shift_id, $amount, $payment_method, $note, $logged_user]);
             recalculateShiftEnding($pdo, $shift_id);
+            logActivity($pdo, 'add_sale', 'Added a sales entry from the summary.', ['shift_id' => $shift_id, 'amount' => $amount]);
             setFlashMessage('Sales entry added.');
             header("Location: summary.php");
             exit;
@@ -173,6 +180,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $stmt = $pdo->prepare("INSERT INTO balance_logs (shift_id, account_name, topup_added, note, logged_by, date_time) VALUES (?, ?, ?, ?, ?, NOW())");
                 $stmt->execute([$shift_id, $account_name, $amount, $note, $logged_user]);
                 recalculateShiftEnding($pdo, $shift_id);
+                logActivity($pdo, 'add_topup', 'Added an extra topup from the summary.', ['shift_id' => $shift_id, 'amount' => $amount]);
                 setFlashMessage('Extra topup added.');
             }
             header("Location: summary.php");
@@ -186,6 +194,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $stmt = $pdo->prepare("INSERT INTO expense_logs (shift_id, item_name, amount, payment_method, logged_by, date_time) VALUES (?, ?, ?, ?, ?, NOW())");
                 $stmt->execute([$shift_id, $item_name, $amount, $payment_method, $logged_user]);
                 recalculateShiftEnding($pdo, $shift_id);
+                logActivity($pdo, 'add_expense', 'Added an expense from the summary.', ['shift_id' => $shift_id, 'amount' => $amount]);
                 setFlashMessage('Expense added.');
             }
             header("Location: summary.php");
@@ -200,6 +209,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $stmt = $pdo->prepare("UPDATE shift_log_entries SET amount = ?, payment_method = ?, note = ? WHERE id = ? AND shift_id = ?");
             $stmt->execute([$amount, $payment_method, $note, $record_id, $shift_id]);
             recalculateShiftEnding($pdo, $shift_id);
+            logActivity($pdo, 'update_sale', 'Updated a sales entry from the summary.', ['shift_id' => $shift_id, 'record_id' => $record_id, 'amount' => $amount]);
             setFlashMessage('Sales entry updated.');
         } elseif ($action === 'update_topup') {
             $account_name = trim($_POST['account_name'] ?? '');
@@ -208,6 +218,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $stmt = $pdo->prepare("UPDATE balance_logs SET account_name = ?, topup_added = ?, note = ? WHERE id = ? AND shift_id = ?");
                 $stmt->execute([$account_name, $amount, $note, $record_id, $shift_id]);
                 recalculateShiftEnding($pdo, $shift_id);
+                logActivity($pdo, 'update_topup', 'Updated an extra topup from the summary.', ['shift_id' => $shift_id, 'record_id' => $record_id, 'amount' => $amount]);
                 setFlashMessage('Extra topup updated.');
             }
         } elseif ($action === 'update_expense') {
@@ -217,6 +228,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $stmt = $pdo->prepare("UPDATE expense_logs SET item_name = ?, amount = ?, payment_method = ? WHERE id = ? AND shift_id = ?");
                 $stmt->execute([$item_name, $amount, $payment_method, $record_id, $shift_id]);
                 recalculateShiftEnding($pdo, $shift_id);
+                logActivity($pdo, 'update_expense', 'Updated an expense from the summary.', ['shift_id' => $shift_id, 'record_id' => $record_id, 'amount' => $amount]);
                 setFlashMessage('Expense updated.');
             }
         }
@@ -354,6 +366,7 @@ try {
     <a href="summary.php" class="nav-btn active">Daily Summary</a>
     <?php if ($user_role === 'admin'): ?>
         <a href="users.php" class="nav-btn" style="border-color:#ff007f;color:#ff007f;">+ Manage Users</a>
+        <a href="activity_logs.php" class="nav-btn" style="border-color:#ff007f;color:#ff007f;">Activity Logs</a>
     <?php endif; ?>
 </div>
 

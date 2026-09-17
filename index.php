@@ -64,6 +64,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         // AUTOMATICALLY UPDATE SHIFT'S STARTING CASH & GCASH FROM THIS INITIAL COUNT
         $updateShift = $pdo->prepare("UPDATE shifts SET starting_cash = ?, starting_gcash = ? WHERE id = ?");
         $updateShift->execute([$cash_total, $gcash, $open_shift['id']]);
+        logActivity($pdo, 'save_cash_counter', 'Saved cash counter for shift.', ['shift_id' => $open_shift['id'], 'grand_total' => $grand_total]);
 
         setFlashMessage('Today cash counter saved.');
         header("Location: index.php?tab=today");
@@ -79,6 +80,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if ($account_name !== '' && $topup_added > 0) {
             $stmt = $pdo->prepare("INSERT INTO balance_logs (shift_id, account_name, topup_added, note, logged_by, date_time) VALUES (?, ?, ?, ?, ?, NOW())");
             $stmt->execute([$open_shift['id'], $account_name, $topup_added, $note, $logged_user]);
+            logActivity($pdo, 'add_topup', 'Added an extra topup.', ['shift_id' => $open_shift['id'], 'amount' => $topup_added]);
             setFlashMessage('Extra topup saved.');
         }
         header("Location: index.php?tab=balance");
@@ -95,6 +97,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if ($item_name !== '' && $amount > 0) {
             $stmt = $pdo->prepare("INSERT INTO expense_logs (shift_id, item_name, amount, payment_method, logged_by, date_time) VALUES (?, ?, ?, ?, ?, NOW())");
             $stmt->execute([$shift_id, $item_name, $amount, $payment_method, $logged_user]);
+            logActivity($pdo, 'add_expense', 'Added an expense.', ['shift_id' => $shift_id, 'amount' => $amount, 'payment_method' => $payment_method]);
             setFlashMessage('Expense saved.');
         }
         header("Location: index.php?tab=expense");
@@ -133,6 +136,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     <a href="summary.php" class="nav-btn">Daily Summary</a>
     <?php if ($user_role === 'admin'): ?>
         <a href="users.php" class="nav-btn" style="border-color:#ff007f; color:#ff007f;">+ Manage Users</a>
+        <a href="activity_logs.php" class="nav-btn" style="border-color:#ff007f;color:#ff007f;">Activity Logs</a>
     <?php endif; ?>
 </div>
 

@@ -9,6 +9,7 @@ if (!isset($_SESSION['loggedin'])) {
 
 $period_id = isset($_GET['period_id']) ? intval($_GET['period_id']) : null;
 $shift_id = isset($_GET['shift_id']) ? intval($_GET['shift_id']) : null;
+logActivity($pdo, 'export_data', 'Exported application data.', ['period_id' => $period_id, 'shift_id' => $shift_id]);
 
 // Determine filename
 $filename = 'Export_Data_All_' . date('Y-m-d') . '.xls';
