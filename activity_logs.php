@@ -97,7 +97,7 @@ if (is_readable($log_file)) {
         <h3>Database Activity (latest 500)</h3>
         <div style="overflow-x:auto;">
             <table class="log-table">
-                <thead><tr><th>Date/time</th><th>User</th><th>Action</th><th>Description</th><th>IP</th></tr></thead>
+                <thead><tr><th>Date/time</th><th>User</th><th>Action</th><th>Description</th></tr></thead>
                 <tbody>
                 <?php foreach ($logs as $log): ?>
                     <tr>
@@ -108,10 +108,9 @@ if (is_readable($log_file)) {
                             <?= htmlspecialchars($log['description']) ?>
                             <?php if ($log['details']): ?><br><small><?= htmlspecialchars($log['details']) ?></small><?php endif; ?>
                         </td>
-                        <td><?= htmlspecialchars($log['ip_address'] ?? '') ?></td>
                     </tr>
                 <?php endforeach; ?>
-                <?php if (!$logs): ?><tr><td colspan="5">No database activity found.</td></tr><?php endif; ?>
+                <?php if (!$logs): ?><tr><td colspan="4">No database activity found.</td></tr><?php endif; ?>
                 </tbody>
             </table>
         </div>
@@ -120,6 +119,11 @@ if (is_readable($log_file)) {
         <div class="file-log"><?php
             if ($file_lines) {
                 foreach ($file_lines as $line) {
+                    $file_entry = json_decode($line, true);
+                    if (is_array($file_entry)) {
+                        unset($file_entry['ip_address']);
+                        $line = json_encode($file_entry, JSON_UNESCAPED_SLASHES);
+                    }
                     echo htmlspecialchars($line) . PHP_EOL;
                 }
             } else {

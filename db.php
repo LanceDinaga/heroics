@@ -26,7 +26,6 @@ function getFlashMessage() {
 function logActivity($pdo, $action, $description, $details = []) {
     $username = $_SESSION['username'] ?? 'guest';
     $user_id = isset($_SESSION['user_id']) ? intval($_SESSION['user_id']) : null;
-    $ip_address = $_SERVER['REMOTE_ADDR'] ?? '';
     $user_agent = $_SERVER['HTTP_USER_AGENT'] ?? '';
     $created_at = date('Y-m-d H:i:s');
     $details_json = $details ? json_encode($details, JSON_UNESCAPED_SLASHES) : null;
@@ -34,10 +33,10 @@ function logActivity($pdo, $action, $description, $details = []) {
     try {
         $stmt = $pdo->prepare(
             'INSERT INTO activity_logs
-             (user_id, username, action, description, details, ip_address, user_agent, created_at)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?)'
+             (user_id, username, action, description, details, user_agent, created_at)
+             VALUES (?, ?, ?, ?, ?, ?, ?)'
         );
-        $stmt->execute([$user_id, $username, $action, $description, $details_json, $ip_address, $user_agent, $created_at]);
+        $stmt->execute([$user_id, $username, $action, $description, $details_json, $user_agent, $created_at]);
     } catch (PDOException $e) {
         error_log('Activity database log failed: ' . $e->getMessage());
     }
@@ -52,7 +51,6 @@ function logActivity($pdo, $action, $description, $details = []) {
             'action' => $action,
             'description' => $description,
             'details' => $details,
-            'ip_address' => $ip_address,
         ], JSON_UNESCAPED_SLASHES) . PHP_EOL;
         if (@file_put_contents($log_file, $line, FILE_APPEND | LOCK_EX) === false) {
             error_log('Activity file log failed: unable to write ' . $log_file);
