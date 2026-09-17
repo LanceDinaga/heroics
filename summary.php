@@ -101,6 +101,34 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         exit;
     }
 
+    if ($can_edit_shift && $shift_id > 0 && $record_id > 0) {
+        $delete_tables = [
+            'delete_sale' => ['shift_log_entries', 'Sales entry deleted.'],
+            'delete_topup' => ['balance_logs', 'Extra topup deleted.'],
+            'delete_expense' => ['expense_logs', 'Expense deleted.'],
+        ];
+        if (isset($delete_tables[$action])) {
+            [$table, $message] = $delete_tables[$action];
+            $stmt = $pdo->prepare("DELETE FROM {$table} WHERE id = ? AND shift_id = ?");
+            $stmt->execute([$record_id, $shift_id]);
+            recalculateShiftEnding($pdo, $shift_id);
+            setFlashMessage($message);
+            header("Location: summary.php");
+            exit;
+        }
+    }
+
+    if ($action === 'delete_cash_counter' && $can_edit_shift && $shift_id > 0 && $record_id > 0) {
+        $stmt = $pdo->prepare("DELETE FROM cash_counter_logs WHERE id = ? AND shift_id = ?");
+        $stmt->execute([$record_id, $shift_id]);
+        $stmt = $pdo->prepare("UPDATE shifts SET starting_cash = 0, starting_gcash = 0 WHERE id = ?");
+        $stmt->execute([$shift_id]);
+        recalculateShiftEnding($pdo, $shift_id);
+        setFlashMessage('Cash counter deleted and starting balances reset.');
+        header("Location: summary.php");
+        exit;
+    }
+
     if ($action === 'update_cash_counter' && $can_edit_shift && $shift_id > 0) {
         $denominations = ['c1000', 'c500', 'c200', 'c100', 'c50', 'c20', 'c10', 'c5', 'c1'];
         $counts = [];
@@ -442,6 +470,15 @@ try {
                                         <div><button type="submit" class="btn btn-green" style="width:100%;">Save Cash Counter</button></div>
                                     <?php endif; ?>
                                 </form>
+                                <?php if ($s['can_edit']): ?>
+                                    <form method="POST" action="summary.php" style="margin-top:10px;" onsubmit="return confirm('Are you sure you want to delete this cash counter? The starting cash and GCash balances will be reset to zero.');">
+                                        <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($_SESSION['csrf_token']) ?>">
+                                        <input type="hidden" name="action" value="delete_cash_counter">
+                                        <input type="hidden" name="shift_id" value="<?= $s['id'] ?>">
+                                        <input type="hidden" name="record_id" value="<?= $s['cash_counter']['id'] ?>">
+                                        <button type="submit" class="btn-danger">Delete Cash Counter</button>
+                                    </form>
+                                <?php endif; ?>
                             <?php endif; ?>
                         </details>
 
@@ -462,7 +499,7 @@ try {
                                             <td><input form="<?= $form_id ?>" type="text" name="note" value="<?= htmlspecialchars($entry['note'] ?? '') ?>"></td>
                                             <td><?= htmlspecialchars($entry['logged_by']) ?></td>
                                             <td><?= htmlspecialchars($entry['date_time']) ?></td>
-                                            <td><button form="<?= $form_id ?>" type="submit" class="btn btn-green" style="padding:6px 10px;">Save</button></td>
+                                            <td><button form="<?= $form_id ?>" type="submit" class="btn btn-green" style="padding:6px 10px;">Save</button><?php if ($s['can_edit']): ?><form id="delete_sale_<?= $entry['id'] ?>" method="POST" action="summary.php" style="display:inline;" onsubmit="return confirm('Are you sure you want to delete this sales entry?');"><input type="hidden" name="csrf_token" value="<?= htmlspecialchars($_SESSION['csrf_token']) ?>"><input type="hidden" name="action" value="delete_sale"><input type="hidden" name="shift_id" value="<?= $s['id'] ?>"><input type="hidden" name="record_id" value="<?= $entry['id'] ?>"><button type="submit" class="btn-danger" style="padding:6px 10px; margin-left:4px;">Delete</button></form><?php endif; ?></td>
                                         </tr>
                                     <?php endforeach; ?>
                                     </tbody>
@@ -500,7 +537,7 @@ try {
                                             <td><input form="<?= $form_id ?>" type="text" name="note" value="<?= htmlspecialchars($topup['note'] ?? '') ?>"></td>
                                             <td><?= htmlspecialchars($topup['logged_by']) ?></td>
                                             <td><?= htmlspecialchars($topup['date_time']) ?></td>
-                                            <td><button form="<?= $form_id ?>" type="submit" class="btn btn-green" style="padding:6px 10px;">Save</button></td>
+                                            <td><button form="<?= $form_id ?>" type="submit" class="btn btn-green" style="padding:6px 10px;">Save</button><?php if ($s['can_edit']): ?><form id="delete_topup_<?= $topup['id'] ?>" method="POST" action="summary.php" style="display:inline;" onsubmit="return confirm('Are you sure you want to delete this extra topup?');"><input type="hidden" name="csrf_token" value="<?= htmlspecialchars($_SESSION['csrf_token']) ?>"><input type="hidden" name="action" value="delete_topup"><input type="hidden" name="shift_id" value="<?= $s['id'] ?>"><input type="hidden" name="record_id" value="<?= $topup['id'] ?>"><button type="submit" class="btn-danger" style="padding:6px 10px; margin-left:4px;">Delete</button></form><?php endif; ?></td>
                                         </tr>
                                     <?php endforeach; ?>
                                     </tbody>
@@ -538,7 +575,7 @@ try {
                                             <td><select form="<?= $form_id ?>" name="payment_method"><option value="cash" <?= ($expense['payment_method'] ?? 'cash') === 'cash' ? 'selected' : '' ?>>Cash</option><option value="gcash" <?= $expense['payment_method'] === 'gcash' ? 'selected' : '' ?>>GCash</option></select></td>
                                             <td><?= htmlspecialchars($expense['logged_by']) ?></td>
                                             <td><?= htmlspecialchars($expense['date_time']) ?></td>
-                                            <td><button form="<?= $form_id ?>" type="submit" class="btn btn-green" style="padding:6px 10px;">Save</button></td>
+                                            <td><button form="<?= $form_id ?>" type="submit" class="btn btn-green" style="padding:6px 10px;">Save</button><?php if ($s['can_edit']): ?><form id="delete_expense_<?= $expense['id'] ?>" method="POST" action="summary.php" style="display:inline;" onsubmit="return confirm('Are you sure you want to delete this expense?');"><input type="hidden" name="csrf_token" value="<?= htmlspecialchars($_SESSION['csrf_token']) ?>"><input type="hidden" name="action" value="delete_expense"><input type="hidden" name="shift_id" value="<?= $s['id'] ?>"><input type="hidden" name="record_id" value="<?= $expense['id'] ?>"><button type="submit" class="btn-danger" style="padding:6px 10px; margin-left:4px;">Delete</button></form><?php endif; ?></td>
                                         </tr>
                                     <?php endforeach; ?>
                                     </tbody>
